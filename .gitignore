@@ -1,2 +1,4 @@
 node_modules/
 stattic.log
+my-site/*
+content/*
