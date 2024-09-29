@@ -15,8 +15,19 @@
 <body class="bg-gray-100 text-gray-800">
 
 <header class="bg-white shadow">
-    <div class="container mx-auto py-6 px-4">
-        <h2 class="text-3xl font-bold">Stattic Site</h2>
+    <div class="container mx-auto py-6 px-4 flex justify-between">
+        <h2 class="text-3xl font-bold"><a href="/">Stattic Site</a></h2>
+        
+        <!-- Navigation Menu -->
+        <nav>
+            <ul class="flex space-x-6">
+                {% for page in pages %}
+                    <li>
+                        <a href="{{ page.permalink }}" class="text-blue-500 hover:underline">{{ page.title }}</a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </nav>
     </div>
 </header>
 
