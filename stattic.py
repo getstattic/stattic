@@ -11,8 +11,10 @@ import re
 import requests
 from PIL import Image
 
+GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap'
+
 class Stattic:
-    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date'):
+    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None):
         self.content_dir = content_dir
         self.posts_dir = os.path.join(content_dir, 'posts')
         self.pages_dir = os.path.join(content_dir, 'pages')
@@ -21,6 +23,7 @@ class Stattic:
         self.images_dir = os.path.join(output_dir, 'images')  # Images directory for downloads
         self.assets_src_dir = os.path.join(os.path.dirname(__file__), 'assets')  # Local assets folder
         self.assets_output_dir = os.path.join(output_dir, 'assets')  # Output folder for assets
+        self.fonts = fonts if fonts else ['Quicksand']  # Default to Quicksand if no font is passed
         self.env = Environment(loader=FileSystemLoader(self.templates_dir))
         self.posts = []  # Store metadata of all posts for index, archive, and RSS generation
         self.pages = []  # Track pages for navigation
@@ -156,6 +159,85 @@ class Stattic:
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Failed to download image {url}: {e}")
             return None
+
+    def download_fonts(self):
+        """Download Google Fonts based on provided names and save the font files locally, dynamically set font-family in CSS."""
+        try:
+            # Default to Quicksand if no fonts are provided
+            if not self.fonts:
+                self.fonts = ['Quicksand']
+
+            # CSS content to store the @font-face rules and custom class names
+            css_content = ""
+            font_family_names = []
+
+            # Create the fonts and CSS directories if they don't exist
+            fonts_output_path = os.path.join(self.assets_output_dir, 'fonts')
+            fonts_css_path = os.path.join(self.assets_output_dir, 'css/fonts.css')
+            os.makedirs(fonts_output_path, exist_ok=True)
+            os.makedirs(os.path.dirname(fonts_css_path), exist_ok=True)
+
+            # List of font weights to download
+            font_weights = [300, 400, 500, 600, 700]
+
+            for font in self.fonts:
+                font_cleaned = font.strip().replace(' ', '+')  # Replace spaces with +
+                font_family_names.append(font.strip())  # Store the clean name for font-family usage
+
+                # Explicitly request each weight to ensure all are downloaded
+                for weight in font_weights:
+                    google_font_url = GOOGLE_FONTS_API.format(font_name=font_cleaned, weights=weight)
+
+                    # Download the CSS from Google Fonts for each weight
+                    response = requests.get(google_font_url)
+                    if response.status_code == 200:
+                        css_data = response.text
+
+                        # Extract URLs and font formats from the CSS data
+                        font_urls = re.findall(r'url\((.*?)\) format\((.*?)\);', css_data)
+
+                        for font_url, format_type in font_urls:
+                            # Ensure the extension matches the format (woff2 is preferred)
+                            file_extension = 'woff2' if 'woff2' in format_type else 'ttf'
+                            font_output_file = os.path.join(fonts_output_path, f"{font.strip().lower()}-{weight}.{file_extension}")
+
+                            # Download the actual font file
+                            font_file_response = requests.get(font_url)
+                            if font_file_response.status_code == 200:
+                                with open(font_output_file, 'wb') as f:
+                                    f.write(font_file_response.content)
+                                self.logger.info(f"Downloaded {font} ({weight}) from {font_url}")
+
+                                # Generate @font-face rule with unique font-family name for each weight
+                                css_content += f"""
+@font-face {{
+  font-family: '{font}-{weight}';  /* Unique font family for each weight */
+  font-style: normal;
+  font-weight: {weight};
+  font-display: swap;
+  src: url('../fonts/{os.path.basename(font_output_file)}') format('{format_type}');
+}}
+"""
+
+                                # Generate custom class using the unique font-family name
+                                css_content += f"""
+.{font.strip().lower()}-{weight} {{
+  font-family: '{font}-{weight}', sans-serif;
+  font-weight: {weight};
+}}
+"""
+                            else:
+                                self.logger.error(f"Failed to download font file from {font_url}")
+                    else:
+                        self.logger.error(f"Failed to fetch font CSS from Google Fonts for {font} weight {weight}")
+
+            # Write the @font-face rules, custom classes, and body CSS to the fonts.css file
+            with open(fonts_css_path, 'w') as f:
+                f.write(css_content)
+
+            self.logger.info(f"Downloaded fonts and generated CSS: {', '.join(self.fonts)}")
+        except Exception as e:
+            self.logger.error(f"Failed to download fonts: {e}")
 
     def copy_assets_to_output(self):
         """Copy the local assets folder (CSS, JS, etc.) to the output directory."""
@@ -437,6 +519,9 @@ class Stattic:
         build_start_time = time.time()
         self.create_output_dir()
 
+        # Download fonts
+        self.download_fonts()
+
         # Build posts and pages
         self.build_posts_and_pages()
 
@@ -462,6 +547,7 @@ if __name__ == "__main__":
     parser.add_argument('--output', type=str, default='output', help='Specify the output directory')
     parser.add_argument('--posts-per-page', type=int, default=5, help='Number of posts per index page')
     parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author'], default='date', help='Sort posts by date, title, or author')
+    parser.add_argument('--fonts', type=str, help='Comma-separated list of Google Fonts to download')
     parser.add_argument('--watch', action='store_true', help='Enable watch mode to automatically rebuild on file changes')
 
     args = parser.parse_args()
@@ -469,7 +555,10 @@ if __name__ == "__main__":
     # Resolve the output directory path
     output_dir = os.path.expanduser(args.output)
 
-    # Create a generator with the specified output directory, posts per page, and sorting method
-    generator = Stattic(output_dir=output_dir, posts_per_page=args.posts_per_page, sort_by=args.sort_by)
+    # Parse fonts
+    fonts = [font.strip() for font in args.fonts.split(',')] if args.fonts else None
+
+    # Create a generator with the specified output directory, posts per page, sorting method, and fonts
+    generator = Stattic(output_dir=output_dir, posts_per_page=args.posts_per_page, sort_by=args.sort_by, fonts=fonts)
 
     generator.build()
