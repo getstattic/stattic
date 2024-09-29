@@ -151,6 +151,24 @@ class Stattic:
         # Ensure that the assets are copied to the output directory
         self.copy_assets_to_output()
 
+    def convert_image_to_webp(self, image_path):
+        """Convert an image to WebP format and delete the original."""
+        try:
+            img = Image.open(image_path)
+            webp_path = image_path.rsplit('.', 1)[0] + '.webp'
+            img.save(webp_path, 'WEBP')
+            self.logger.info(f"Converted image to WebP: {webp_path}")
+            
+            # Remove the original image file to save space
+            os.remove(image_path)
+            self.logger.info(f"Removed original image: {image_path}")
+            
+            self.image_conversion_count += 1  # Increment conversion count
+            return webp_path
+        except Exception as e:
+            self.logger.error(f"Failed to convert {image_path} to WebP: {e}")
+            return None
+
     def process_images(self, content):
         """Find all image URLs in the content, download, and convert them."""
         image_urls = re.findall(r'!\[.*?\]\((.*?)\)', content)  # Extract image URLs from markdown
