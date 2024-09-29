@@ -10,6 +10,8 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound, TemplateSynt
 import re
 import requests
 from PIL import Image
+import csscompressor
+import rjsmin
 
 GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap'
 
@@ -77,15 +79,55 @@ class Stattic:
 
         return log_file
 
+    def minify_assets(self):
+        """Minify all CSS and JS files into single files."""
+        try:
+            # Paths to CSS and JS files
+            css_dir = os.path.join(self.assets_output_dir, 'css')
+            js_dir = os.path.join(self.assets_output_dir, 'js')
+
+            # Output paths for minified files
+            minified_css_path = os.path.join(css_dir, 'main.min.css')
+            minified_js_path = os.path.join(js_dir, 'main.min.js')
+
+            # Minify CSS files
+            all_css_content = ""
+            for file in os.listdir(css_dir):
+                if file.endswith(".css") and not file.endswith(".min.css"):
+                    with open(os.path.join(css_dir, file), 'r') as f:
+                        all_css_content += f.read()
+            minified_css_content = csscompressor.compress(all_css_content)
+            with open(minified_css_path, 'w') as f:
+                f.write(minified_css_content)
+            self.logger.info(f"Minified CSS into {minified_css_path}")
+
+            # Minify JS files
+            all_js_content = ""
+            for file in os.listdir(js_dir):
+                if file.endswith(".js") and not file.endswith(".min.js"):
+                    with open(os.path.join(js_dir, file), 'r') as f:
+                        all_js_content += f.read()
+            minified_js_content = rjsmin.jsmin(all_js_content)
+            with open(minified_js_path, 'w') as f:
+                f.write(minified_js_content)
+            self.logger.info(f"Minified JS into {minified_js_path}")
+
+        except Exception as e:
+            self.logger.error(f"Failed to minify assets: {e}")
+
     def format_date(self, date_str):
         """Format the date from 'YYYY-MM-DDTHH:MM:SS' to 'Month DD, YYYY'."""
         try:
-            # Parse the input string to a datetime object
+            # If date_str is already a datetime.date or datetime.datetime object, format it directly
+            if isinstance(date_str, (datetime, datetime.date)):
+                return date_str.strftime('%B %d, %Y')
+
+            # Parse the input string to a datetime object if it's a string
             date_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
-            # Format the date to 'Month DD, YYYY'
             return date_obj.strftime('%B %d, %Y')
-        except ValueError:
-            # Return the original string if formatting fails
+
+        except (ValueError, TypeError):
+            # Return the original string if formatting fails or if it's not a string/datetime
             return date_str
 
     def load_categories_and_tags(self):
@@ -413,6 +455,7 @@ class Stattic:
         try:
             start_time = time.time()
             template = self.env.get_template(template_name)
+            context['minify'] = args.minify  # Pass the minify flag
             rendered_template = template.render(context)
             duration = time.time() - start_time
             self.logger.info(f"Rendered template: {template_name} (Time taken: {duration:.2f} seconds)")
@@ -529,6 +572,10 @@ class Stattic:
         self.build_index_page()
         self.build_static_pages()
 
+        # Minify assets if --minify is enabled
+        if args.minify:
+            self.minify_assets()
+
         build_end_time = time.time()
         total_time = build_end_time - build_start_time
         self.logger.info(f"Site build completed successfully in {total_time:.2f} seconds.")
@@ -549,6 +596,7 @@ if __name__ == "__main__":
     parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author'], default='date', help='Sort posts by date, title, or author')
     parser.add_argument('--fonts', type=str, help='Comma-separated list of Google Fonts to download')
     parser.add_argument('--watch', action='store_true', help='Enable watch mode to automatically rebuild on file changes')
+    parser.add_argument('--minify', action='store_true', help='Minify CSS and JS into single files')
 
     args = parser.parse_args()
 
