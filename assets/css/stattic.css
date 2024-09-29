@@ -1,0 +1,224 @@
+:root {
+    --primary-color: #22C55E;
+    --secondary-color: #15803D;
+    --accent-color: #F59E0B;
+    --border-color: #1E293B;
+    --background-color: #020617;
+    --text-color: #E2E8F0;
+}
+
+/* Existing Classes */
+.bg-primary {
+    background-color: var(--primary-color);
+}
+
+.text-secondary {
+    color: var(--secondary-color);
+}
+
+.bg-accent {
+    background-color: var(--accent-color);
+}
+
+.bg-background {
+    background-color: var(--background-color);
+}
+
+.text-links {
+    color: var(--primary-color);
+}
+
+.text-primary {
+    color: var(--text-color);
+}
+
+.text-accent {
+    color: var(--accent-color);
+}
+
+.border-primary {
+    border-color: var(--border-color);
+}
+
+/* Blanket styles for 20 common HTML elements in WordPress content */
+.stattic-content p {
+    margin-bottom: 1.5rem;
+    color: var(--text-color);
+    line-height: 1.75;
+}
+
+.stattic-content img {
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+.stattic-content span {
+    color: var(--text-color);
+}
+
+.stattic-content h1, 
+.stattic-content h2, 
+.stattic-content h3, 
+.stattic-content h4, 
+.stattic-content h5, 
+.stattic-content h6 {
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.stattic-content h1 {
+    font-size: 2.5rem; /* Larger for emphasis */
+}
+
+.stattic-content h2 {
+    font-size: 2rem;
+}
+
+.stattic-content h3 {
+    font-size: 1.75rem;
+}
+
+.stattic-content h4 {
+    font-size: 1.5rem;
+}
+
+.stattic-content h5 {
+    font-size: 1.25rem;
+}
+
+.stattic-content h6 {
+    font-size: 1.125rem;
+}
+
+.stattic-content ul, 
+.stattic-content ol {
+    margin-left: 2rem; /* Indentation */
+    margin-bottom: 1.5rem;
+    color: var(--text-color);
+}
+
+.stattic-content li {
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+}
+
+.stattic-content blockquote {
+    margin-left: 1.5rem;
+    padding-left: 1.5rem;
+    border-left: 4px solid var(--accent-color);
+    color: var(--text-color);
+    font-style: italic;
+    background-color: rgba(0, 0, 0, 0.05); /* Light background for emphasis */
+}
+
+.stattic-content a {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.stattic-content a:hover {
+    color: var(--accent-color);
+}
+
+.stattic-content hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 2rem 0;
+}
+
+.stattic-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+}
+
+.stattic-content th, 
+.stattic-content td {
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+}
+
+.stattic-content th {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    text-align: left;
+    font-weight: bold;
+}
+
+.stattic-content td {
+    background-color: #1E293B; /* Darker for rows */
+    color: var(--text-color);
+}
+
+.stattic-content code {
+    background-color: #1E293B;
+    color: var(--primary-color);
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+}
+
+.stattic-content pre {
+    background-color: #1E293B;
+    color: var(--text-color);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 0.25rem;
+    overflow-x: auto;
+}
+
+.stattic-content pre code {
+    background-color: transparent;
+    padding: 0;
+}
+
+.stattic-content figure {
+    margin: 1.5rem 0;
+}
+
+.stattic-content figcaption {
+    font-size: 0.875rem; /* Smaller font for captions */
+    color: var(--text-color);
+    text-align: center;
+}
+
+.stattic-content iframe, 
+.stattic-content video {
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+    max-width: 100%;
+    height: auto;
+}
+
+.stattic-content input, 
+.stattic-content textarea, 
+.stattic-content select, 
+.stattic-content button {
+    margin-bottom: 1.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.25rem;
+    border: 1px solid var(--border-color);
+    background-color: #1E293B;
+    color: var(--text-color);
+    width: 100%;
+}
+
+.stattic-content button {
+    background-color: var(--primary-color);
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.stattic-content button:hover {
+    background-color: var(--secondary-color);
+}
+
+/* Style lists inside ordered/unordered lists */
+.stattic-content ul ul, 
+.stattic-content ol ol {
+    margin-left: 1.5rem;
+}
+
