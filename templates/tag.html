@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1 class="text-3xl font-bold mb-4">Posts tagged with "{{ tag }}"</h1>
+<h1 class="text-3xl font-bold mb-4 quicksand-700">Posts tagged with "{{ tag }}"</h1>
 
 <ul class="space-y-6">
     {% for post in posts %}
     <li>
-        <h2 class="text-2xl font-bold">
+        <h3 class="text-4xl font-bold quicksand-700">
             <a href="{{ post.permalink }}" class="text-links hover:underline">{{ post.title }}</a>
-        </h2>
+        </h3>
         <p class=" dark:text-gray-400">{{ post.excerpt }}</p>
     </li>
     {% endfor %}

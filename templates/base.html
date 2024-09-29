@@ -8,25 +8,26 @@
 
     <!-- Tailwind CSS -->
     <link href="/assets/css/tailwind.min.css" rel="stylesheet" rel="preload" />
-
+    <!-- Load fonts CSS -->
+    <link href="/assets/css/fonts.css" rel="stylesheet" rel="preload">
     <!-- Load custom CSS after Tailwind -->
     <link href="/assets/css/stattic.css" rel="stylesheet" rel="preload">
 
     <!-- Alpine.js for interactive components -->
     <script src="/assets/css/alpine.min.js" defer></script>
 </head>
-<body class="bg-background text-primary">
+<body class="bg-background text-primary quicksand-300">
 
 <header class="bg-background shadow">
     <div class="container max-w-screen-xl m-auto py-6 px-4 flex justify-between">
-        <h2 class="text-3xl font-bold"><a href="/" class="text-links">Stattic Site</a></h2>
+        <h2 class="text-3xl font-bold quicksand-700"><a href="/" class="text-links">Stattic Site</a></h2>
         
         <!-- Navigation Menu -->
         <nav>
             <ul class="flex space-x-6">
                 {% for page in pages %}
                     <li>
-                        <a href="{{ page.permalink }}" class="text-primary hover:underline">{{ page.title }}</a>
+                        <a href="{{ page.permalink }}" class="text-primary hover:underline quicksand-700">{{ page.title }}</a>
                     </li>
                 {% endfor %}
             </ul>
