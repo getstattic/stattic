@@ -4,10 +4,11 @@ import yaml
 import argparse
 import logging
 import time
+from datetime import datetime
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, TemplateSyntaxError
 
 class Stattic:
-    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', log_file='stattic.log'):
+    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date'):
         self.content_dir = content_dir
         self.posts_dir = os.path.join(content_dir, 'posts')
         self.pages_dir = os.path.join(content_dir, 'pages')
@@ -22,8 +23,8 @@ class Stattic:
         self.categories = {}
         self.tags = {}
 
-        # Setup logging
-        self.logger = self.setup_logging(log_file)
+        # Setup logging (now logs are stored in the /logs/ folder)
+        log_file = self.setup_logging()
 
         # Load categories and tags from YAML files
         self.load_categories_and_tags()
@@ -39,8 +40,16 @@ class Stattic:
         except FileNotFoundError as e:
             self.logger.error(f"YAML file not found: {e}")
 
-    def setup_logging(self, log_file):
+    def setup_logging(self):
         """Setup the logger to write both to a file and the console."""
+        # Define the logs directory relative to the script location
+        logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+        os.makedirs(logs_dir, exist_ok=True)  # Create the logs directory if it doesn't exist
+
+        # Create a log file name with the current date and time
+        log_file = os.path.join(logs_dir, f"stattic_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
+
+        # Setup logger
         logger = logging.getLogger('stattic')
         logger.setLevel(logging.DEBUG)
 
@@ -48,7 +57,7 @@ class Stattic:
         fh = logging.FileHandler(log_file)
         fh.setLevel(logging.DEBUG)
 
-        # Create console handler for higher level logs
+        # Create console handler for higher-level logs
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
 
@@ -61,7 +70,10 @@ class Stattic:
         logger.addHandler(fh)
         logger.addHandler(ch)
 
-        return logger
+        self.logger = logger
+        self.logger.info(f"Logging initialized. Logs stored at {log_file}")
+
+        return log_file
 
     def create_output_dir(self):
         """Create the output directory if it doesn't exist."""
@@ -253,6 +265,12 @@ class Stattic:
         self.logger.info(f"Total posts generated: {self.posts_generated}")
         self.logger.info(f"Total pages generated: {self.pages_generated}")
 
+def resolve_output_path(output_dir):
+    # If the output path starts with "~/", expand it to the user's home directory
+    if output_dir.startswith("~/"):
+        output_dir = os.path.expanduser(output_dir)
+    return output_dir
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Stattic - Static Site Generator')
     parser.add_argument('--output', type=str, default='output', help='Specify the output directory')
@@ -262,7 +280,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # Resolve the output directory path
+    output_dir = resolve_output_path(args.output)
+
     # Create a generator with the specified output directory, posts per page, and sorting method
-    generator = Stattic(output_dir=args.output, posts_per_page=args.posts_per_page, sort_by=args.sort_by)
+    generator = Stattic(output_dir=output_dir, posts_per_page=args.posts_per_page, sort_by=args.sort_by)
 
     generator.build()
