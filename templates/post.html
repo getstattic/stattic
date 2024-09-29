@@ -2,8 +2,8 @@
 
 {% block content %}
 <article class="prose dark:prose-dark max-w-none">
-    <h1 class="text-6xl font-bold mb-12 text-primary">{{ title }}</h1>
-    <p class="text-2md post-meta mb-12"><span class="author">{{ author }}</span> on <span class="date">{{ date }}</span></p>
+    <h1 class="text-6xl font-bold mb-4 text-links">{{ title }}</h1>
+    <p class="text-2md post-meta mb-4 pb-2 text-secondary italic border-b border-primary"><span class="date">{{ date }}</span> &middot; <span class="author">{{ author }}</span></p>
     {% if featured_image %}
     <img src="{{ featured_image }}" alt="{{ title }}" class="rounded-lg my-4 w-full h-auto">
     {% endif %}

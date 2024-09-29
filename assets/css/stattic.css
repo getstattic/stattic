@@ -5,6 +5,7 @@
     --border-color: #1E293B;
     --background-color: #020617;
     --text-color: #E2E8F0;
+    --text-secondary: #475569;
 }
 
 /* Existing Classes */
@@ -30,6 +31,10 @@
 
 .text-primary {
     color: var(--text-color);
+}
+
+.text-secondary {
+    color: var(--text-secondary);
 }
 
 .text-accent {
@@ -112,7 +117,7 @@
     border-left: 4px solid var(--accent-color);
     color: var(--text-color);
     font-style: italic;
-    background-color: rgba(0, 0, 0, 0.05); /* Light background for emphasis */
+    background-color: rgba(0, 0, 0, 0.05);
 }
 
 .stattic-content a {
@@ -150,7 +155,7 @@
 }
 
 .stattic-content td {
-    background-color: #1E293B; /* Darker for rows */
+    background-color: #1E293B;
     color: var(--text-color);
 }
 
@@ -180,7 +185,7 @@
 }
 
 .stattic-content figcaption {
-    font-size: 0.875rem; /* Smaller font for captions */
+    font-size: 0.875rem;
     color: var(--text-color);
     text-align: center;
 }
@@ -216,7 +221,6 @@
     background-color: var(--secondary-color);
 }
 
-/* Style lists inside ordered/unordered lists */
 .stattic-content ul ul, 
 .stattic-content ol ol {
     margin-left: 1.5rem;
