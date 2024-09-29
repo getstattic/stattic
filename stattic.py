@@ -30,13 +30,15 @@ class Stattic:
         self.sort_by = sort_by
         self.categories = {}
         self.tags = {}
+        self.authors = {}  # Store author mappings
         self.image_conversion_count = 0  # Track total number of converted images
 
         # Setup logging (now logs are stored in the /logs/ folder)
         log_file = self.setup_logging()
 
-        # Load categories and tags from YAML files
+        # Load categories, tags, and authors from YAML files
         self.load_categories_and_tags()
+        self.load_authors()
 
         # Ensure images directory exists
         os.makedirs(self.images_dir, exist_ok=True)
@@ -84,6 +86,21 @@ class Stattic:
             self.logger.error(f"YAML file not found: {e}")
         except Exception as e:
             self.logger.error(f"Error loading categories/tags: {e}")
+
+    def load_authors(self):
+        """Load authors from a YAML file."""
+        try:
+            with open(os.path.join(self.content_dir, 'authors.yml'), 'r') as authors_file:
+                self.authors = yaml.safe_load(authors_file)
+            self.logger.info(f"Loaded {len(self.authors)} authors")
+        except FileNotFoundError as e:
+            self.logger.error(f"Authors YAML file not found: {e}")
+        except Exception as e:
+            self.logger.error(f"Error loading authors: {e}")
+
+    def get_author_name(self, author_id):
+        """Fetch the author's name based on the author_id."""
+        return self.authors.get(author_id, "Unknown")
 
     def load_pages(self):
         """Load pages for the navigation and use across all templates."""
@@ -245,6 +262,9 @@ class Stattic:
             if isinstance(title, dict):
                 title = title.get('rendered', 'Untitled')
 
+            # Get author name using the helper function
+            author_name = self.get_author_name(metadata.get('author', 'Unknown'))
+
             post_categories = []
             for cat_id in metadata.get('categories', []):
                 if isinstance(cat_id, int):
@@ -265,7 +285,7 @@ class Stattic:
                 'page.html' if is_page else 'post.html',
                 content=html_content,
                 title=title,
-                author=metadata.get('author', 'Unknown'),
+                author=author_name,
                 date=metadata.get('date', ''),
                 categories=post_categories,
                 tags=post_tags,
