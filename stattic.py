@@ -74,6 +74,17 @@ class Stattic:
 
         return log_file
 
+    def format_date(self, date_str):
+        """Format the date from 'YYYY-MM-DDTHH:MM:SS' to 'Month DD, YYYY'."""
+        try:
+            # Parse the input string to a datetime object
+            date_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
+            # Format the date to 'Month DD, YYYY'
+            return date_obj.strftime('%B %d, %Y')
+        except ValueError:
+            # Return the original string if formatting fails
+            return date_str
+
     def load_categories_and_tags(self):
         """Load categories and tags from YAML files."""
         try:
@@ -265,6 +276,9 @@ class Stattic:
             # Get author name using the helper function
             author_name = self.get_author_name(metadata.get('author', 'Unknown'))
 
+            # Format the date using the format_date helper function
+            formatted_date = self.format_date(metadata.get('date', ''))
+
             post_categories = []
             for cat_id in metadata.get('categories', []):
                 if isinstance(cat_id, int):
@@ -286,7 +300,7 @@ class Stattic:
                 content=html_content,
                 title=title,
                 author=author_name,
-                date=metadata.get('date', ''),
+                date=formatted_date,
                 categories=post_categories,
                 tags=post_tags,
                 featured_image=metadata.get('featured_image', None),
