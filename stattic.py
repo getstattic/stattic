@@ -215,14 +215,14 @@ class Stattic:
   font-style: normal;
   font-weight: {weight};
   font-display: swap;
-  src: url('../fonts/{os.path.basename(font_output_file)}') format('{format_type}');
+  src: url('../fonts/{os.path.basename(font_output_file)}') format({format_type});
 }}
 """
 
                                 # Generate custom class using the unique font-family name
                                 css_content += f"""
 .{font.strip().lower()}-{weight} {{
-  font-family: '{font}-{weight}', sans-serif;
+  font-family: '{font}-{weight}', 'Helvetica', 'Arial', sans-serif;
   font-weight: {weight};
 }}
 """
