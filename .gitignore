@@ -1,4 +1,4 @@
-node_modules/
-stattic.log
+node_modules/*
 my-site/*
 content/*
+logs/*
