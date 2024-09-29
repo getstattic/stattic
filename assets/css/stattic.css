@@ -6,6 +6,7 @@
     --background-color: #020617;
     --text-color: #E2E8F0;
     --text-secondary: #475569;
+    --text-accent: #F59E0B;
 }
 
 /* Existing Classes */
@@ -38,7 +39,7 @@
 }
 
 .text-accent {
-    color: var(--accent-color);
+    color: var(--text-accent);
 }
 
 .border-primary {
