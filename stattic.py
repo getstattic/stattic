@@ -6,6 +6,9 @@ import logging
 import time
 from datetime import datetime
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, TemplateSyntaxError
+import re
+import requests
+from PIL import Image
 
 class Stattic:
     def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date'):
@@ -14,14 +17,17 @@ class Stattic:
         self.pages_dir = os.path.join(content_dir, 'pages')
         self.templates_dir = templates_dir
         self.output_dir = output_dir
+        self.images_dir = os.path.join(output_dir, 'images')  # Images directory for downloads
         self.env = Environment(loader=FileSystemLoader(self.templates_dir))
         self.posts = []  # Store metadata of all posts for index, archive, and RSS generation
+        self.pages = []  # Track pages for navigation
         self.pages_generated = 0
         self.posts_generated = 0
         self.posts_per_page = posts_per_page
         self.sort_by = sort_by
         self.categories = {}
         self.tags = {}
+        self.image_conversion_count = 0  # Track total number of converted images
 
         # Setup logging (now logs are stored in the /logs/ folder)
         log_file = self.setup_logging()
@@ -29,44 +35,73 @@ class Stattic:
         # Load categories and tags from YAML files
         self.load_categories_and_tags()
 
+        # Ensure images directory exists
+        os.makedirs(self.images_dir, exist_ok=True)
+
+        # Ensure pages are loaded before generating posts or pages
+        self.load_pages()
+
     def load_categories_and_tags(self):
         """Load categories and tags from YAML files."""
         try:
             with open(os.path.join(self.content_dir, 'categories.yml'), 'r') as cat_file:
                 self.categories = yaml.safe_load(cat_file)
+                if isinstance(self.categories, list):
+                    self.categories = {cat['id']: cat for cat in self.categories if isinstance(cat, dict) and 'id' in cat}
             with open(os.path.join(self.content_dir, 'tags.yml'), 'r') as tag_file:
                 self.tags = yaml.safe_load(tag_file)
+                if isinstance(self.tags, list):
+                    self.tags = {tag['id']: tag for tag in self.tags if isinstance(tag, dict) and 'id' in tag}
             self.logger.info(f"Loaded {len(self.categories)} categories and {len(self.tags)} tags")
         except FileNotFoundError as e:
             self.logger.error(f"YAML file not found: {e}")
+        except Exception as e:
+            self.logger.error(f"Error loading categories/tags: {e}")
+
+    def load_pages(self):
+        """Load pages for the navigation and use across all templates."""
+        try:
+            page_files = self.get_markdown_files(self.pages_dir)
+            for page_file in page_files:
+                filepath = os.path.join(self.pages_dir, page_file)
+                metadata, _ = self.parse_markdown_with_metadata(filepath)
+
+                # Fix title extraction if it's a dictionary with 'rendered'
+                title = metadata.get('title', 'Untitled')
+                if isinstance(title, dict):
+                    title = title.get('rendered', 'Untitled')
+
+                # Add page metadata to self.pages
+                self.pages.append({
+                    'title': title,
+                    'permalink': f"/{metadata.get('custom_url', page_file.replace('.md', ''))}/"
+                })
+
+            self.logger.info(f"Loaded {len(self.pages)} pages for navigation")
+
+        except Exception as e:
+            self.logger.error(f"Failed to load pages: {e}")
 
     def setup_logging(self):
         """Setup the logger to write both to a file and the console."""
-        # Define the logs directory relative to the script location
         logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
-        os.makedirs(logs_dir, exist_ok=True)  # Create the logs directory if it doesn't exist
+        os.makedirs(logs_dir, exist_ok=True)
 
-        # Create a log file name with the current date and time
         log_file = os.path.join(logs_dir, f"stattic_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
 
-        # Setup logger
         logger = logging.getLogger('stattic')
         logger.setLevel(logging.DEBUG)
 
-        # Create file handler which logs all messages
         fh = logging.FileHandler(log_file)
         fh.setLevel(logging.DEBUG)
 
-        # Create console handler for higher-level logs
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
 
-        # Create a formatter and set it for the handlers
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         fh.setFormatter(formatter)
         ch.setFormatter(formatter)
 
-        # Add the handlers to the logger
         logger.addHandler(fh)
         logger.addHandler(ch)
 
@@ -74,6 +109,97 @@ class Stattic:
         self.logger.info(f"Logging initialized. Logs stored at {log_file}")
 
         return log_file
+
+    def download_image(self, url, output_dir):
+        """Download an image and save it locally."""
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # Ensure the request was successful
+
+            # Extract the image file name
+            image_name = os.path.basename(url)
+            image_path = os.path.join(output_dir, image_name)
+
+            # Save the image
+            with open(image_path, 'wb') as image_file:
+                image_file.write(response.content)
+            
+            self.logger.info(f"Downloaded image: {url}")
+            return image_path
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Failed to download image {url}: {e}")
+            return None
+
+    def convert_image_to_webp(self, image_path):
+        """Convert an image to WebP format and delete the original."""
+        try:
+            img = Image.open(image_path)
+            webp_path = image_path.rsplit('.', 1)[0] + '.webp'
+            img.save(webp_path, 'WEBP')
+            self.logger.info(f"Converted image to WebP: {webp_path}")
+            
+            # Remove the original image file to save space
+            os.remove(image_path)
+            self.logger.info(f"Removed original image: {image_path}")
+            
+            self.image_conversion_count += 1  # Increment conversion count
+            return webp_path
+        except Exception as e:
+            self.logger.error(f"Failed to convert {image_path} to WebP: {e}")
+            return None
+
+    def process_images(self, content):
+        """Find all image URLs in the content, download, and convert them."""
+        image_urls = re.findall(r'!\[.*?\]\((.*?)\)', content)  # Extract image URLs from markdown
+        local_image_paths = {}
+
+        for url in image_urls:
+            self.logger.info(f"Processing image: {url}")
+            image_name = os.path.basename(url)
+            webp_image_path = os.path.join(self.images_dir, image_name.rsplit('.', 1)[0] + '.webp')
+
+            # Check if the WebP version already exists
+            if os.path.exists(webp_image_path):
+                self.logger.info(f"Using existing WebP image: {webp_image_path}")
+                local_image_paths[url] = os.path.join('/images', os.path.basename(webp_image_path))
+            else:
+                # Download and convert the image if the WebP version does not exist
+                image_path = self.download_image(url, self.images_dir)
+                if image_path:
+                    webp_path = self.convert_image_to_webp(image_path)
+                    if webp_path:
+                        local_image_paths[url] = os.path.join('/images', os.path.basename(webp_path))
+
+        # Replace external URLs with local WebP paths in the content
+        for url, webp_path in local_image_paths.items():
+            content = content.replace(url, webp_path)
+
+        return content
+
+    def parse_markdown_with_metadata(self, filepath):
+        """Extract frontmatter and markdown content from the file, process images."""
+        try:
+            start_time = time.time()
+            with open(filepath, 'r') as f:
+                content = f.read()
+
+            # Split frontmatter (YAML) and markdown body
+            if content.startswith('---'):
+                frontmatter, markdown_content = content.split('---', 2)[1:]
+                metadata = yaml.safe_load(frontmatter)
+            else:
+                metadata = {}
+                markdown_content = content
+
+            # Process and download images from the markdown content
+            markdown_content = self.process_images(markdown_content)
+
+            duration = time.time() - start_time
+            self.logger.info(f"Parsed markdown file: {filepath} (Time taken: {duration:.2f} seconds)")
+            return metadata, markdown_content
+        except Exception as e:
+            self.logger.error(f"Failed to parse markdown file: {filepath} - {e}")
+            raise
 
     def create_output_dir(self):
         """Create the output directory if it doesn't exist."""
@@ -93,26 +219,62 @@ class Stattic:
             self.logger.error(f"Directory not found: {directory}")
             raise
 
-    def parse_markdown_with_metadata(self, filepath):
-        """Extract frontmatter and markdown content from the file."""
+    def build_post_or_page(self, metadata, html_content, post_slug, output_dir, is_page=False):
+        """Render the post or page template and write it to the output directory."""
         try:
-            start_time = time.time()
-            with open(filepath, 'r') as f:
-                content = f.read()
+            os.makedirs(output_dir, exist_ok=True)
+            output_file_path = os.path.join(output_dir, 'index.html')
 
-            # Split frontmatter (YAML) and markdown body
-            if content.startswith('---'):
-                frontmatter, markdown_content = content.split('---', 2)[1:]
-                metadata = yaml.safe_load(frontmatter)
+            # Fix title rendering to ensure it is a string, not a dict
+            title = metadata.get('title', 'Untitled')
+            if isinstance(title, dict):
+                title = title.get('rendered', 'Untitled')
+
+            post_categories = []
+            for cat_id in metadata.get('categories', []):
+                if isinstance(cat_id, int):
+                    category = self.categories.get(cat_id, {})
+                    post_categories.append(category.get('name', f"Unknown (ID: {cat_id})"))
+                else:
+                    self.logger.error(f"Invalid category ID: {cat_id}")
+
+            post_tags = []
+            for tag_id in metadata.get('tags', []):
+                if isinstance(tag_id, int):
+                    tag = self.tags.get(tag_id, {})
+                    post_tags.append(tag.get('name', f"Unknown (ID: {tag_id})"))
+                else:
+                    self.logger.error(f"Invalid tag ID: {tag_id}")
+
+            rendered_html = self.render_template(
+                'page.html' if is_page else 'post.html',
+                content=html_content,
+                title=title,
+                author=metadata.get('author', 'Unknown'),
+                date=metadata.get('date', ''),
+                categories=post_categories,
+                tags=post_tags,
+                featured_image=metadata.get('featured_image', None),
+                seo_title=metadata.get('seo_title', title),
+                seo_keywords=metadata.get('keywords', ''),
+                seo_description=metadata.get('description', ''),
+                lang=metadata.get('lang', 'en'),
+                pages=self.pages,  # Pass pages for consistent navigation
+                metadata=metadata
+            )
+
+            # Write the rendered HTML to the output file
+            with open(output_file_path, 'w') as output_file:
+                output_file.write(rendered_html)
+
+            self.logger.info(f"Generated {'page' if is_page else 'post'}: {output_file_path}")
+            if is_page:
+                self.pages_generated += 1
             else:
-                metadata = {}
-                markdown_content = content
+                self.posts_generated += 1
 
-            duration = time.time() - start_time
-            self.logger.info(f"Parsed markdown file: {filepath} (Time taken: {duration:.2f} seconds)")
-            return metadata, markdown_content
         except Exception as e:
-            self.logger.error(f"Failed to parse markdown file: {filepath} - {e}")
+            self.logger.error(f"Failed to generate {'page' if is_page else 'post'} {post_slug}: {e}")
             raise
 
     def render_template(self, template_name, **context):
@@ -130,57 +292,6 @@ class Stattic:
         except TemplateSyntaxError as e:
             self.logger.error(f"Template syntax error in {e.filename} at line {e.lineno}: {e.message}")
             return f"Error: Template syntax error in {e.filename} at line {e.lineno}: {e.message}"
-
-    def convert_markdown_to_html(self, markdown_content):
-        """Convert Markdown content to HTML."""
-        return markdown.markdown(markdown_content)
-
-    def generate_excerpt(self, content):
-        """Generate an excerpt from the post content if no excerpt is provided."""
-        words = content.split()[:30]  # Take the first 30 words
-        return ' '.join(words) + '...'
-
-    def build_post_or_page(self, metadata, html_content, post_slug, output_dir, is_page=False):
-        """Render the post or page template and write it to the output directory."""
-        try:
-            os.makedirs(output_dir, exist_ok=True)
-            output_file_path = os.path.join(output_dir, 'index.html')
-
-            # Use the correct template (post or page)
-            template_name = 'page.html' if is_page else 'post.html'
-
-            # Map category and tag IDs to names
-            post_categories = [cat['name'] for cat in self.categories if cat['id'] in metadata.get('categories', [])]
-            post_tags = [tag['name'] for tag in self.tags if tag['id'] in metadata.get('tags', [])]
-
-            rendered_html = self.render_template(
-                template_name,
-                content=html_content,
-                title=metadata.get('title', 'Untitled'),
-                author=metadata.get('author', 'Unknown'),
-                date=metadata.get('date', ''),
-                categories=post_categories,
-                tags=post_tags,
-                featured_image=metadata.get('featured_image', None),
-                seo_title=metadata.get('seo_title', metadata.get('title', 'Untitled')),
-                seo_keywords=metadata.get('keywords', ''),
-                seo_description=metadata.get('description', ''),
-                lang=metadata.get('lang', 'en'),
-                metadata=metadata  # Pass all metadata to the template
-            )
-
-            with open(output_file_path, 'w') as output_file:
-                output_file.write(rendered_html)
-
-            self.logger.info(f"Generated {'page' if is_page else 'post'}: {output_file_path}")
-            if is_page:
-                self.pages_generated += 1
-            else:
-                self.posts_generated += 1
-
-        except Exception as e:
-            self.logger.error(f"Failed to generate {'page' if is_page else 'post'} {post_slug}: {e}")
-            raise
 
     def build_posts_and_pages(self):
         """Process and build all posts and pages."""
@@ -207,6 +318,15 @@ class Stattic:
             # Render the post and write it to the output directory
             self.build_post_or_page(metadata, html_content, post_slug, post_output_dir, is_page=False)
 
+            # Collect post metadata for the index page
+            post_metadata = {
+                'title': metadata.get('title', 'Untitled'),
+                'excerpt': metadata.get('excerpt', self.generate_excerpt(md_content)),
+                'permalink': f"/posts/{post_slug}/",
+                'date': metadata.get('date', 'Unknown')
+            }
+            self.posts.append(post_metadata)
+
         # Process pages (save in root directory)
         page_files = self.get_markdown_files(self.pages_dir)
         for page_file in page_files:
@@ -225,14 +345,30 @@ class Stattic:
             # Render the page and write it to the output directory
             self.build_post_or_page(metadata, html_content, page_slug, page_output_dir, is_page=True)
 
+    def convert_markdown_to_html(self, markdown_content):
+        """Convert Markdown content to HTML."""
+        return markdown.markdown(markdown_content)
+
+    def generate_excerpt(self, content):
+        """Generate an excerpt from the post content if no excerpt is provided."""
+        words = content.split()[:30]  # Take the first 30 words
+        return ' '.join(words) + '...'
+
     def build_index_page(self):
         """Render and build the index (homepage) with the list of posts."""
         try:
-            output_dir = os.path.join(self.output_dir, 'index.html')
-            rendered_html = self.render_template('index.html', posts=self.posts)
-            with open(output_dir, 'w') as output_file:
+            # Sort posts by date, and limit them based on posts_per_page
+            posts_for_index = sorted(self.posts, key=lambda post: post['date'], reverse=True)[:self.posts_per_page]
+
+            # Render the index.html template with the list of posts and pages for the menu
+            rendered_html = self.render_template('index.html', posts=posts_for_index, pages=self.pages)
+
+            # Save the generated index page
+            output_file_path = os.path.join(self.output_dir, 'index.html')
+            with open(output_file_path, 'w') as output_file:
                 output_file.write(rendered_html)
-            self.logger.info(f"Generated index page: {output_dir}")
+
+            self.logger.info(f"Generated index page: {output_file_path}")
         except Exception as e:
             self.logger.error(f"Failed to generate index page: {e}")
 
@@ -264,6 +400,7 @@ class Stattic:
         self.logger.info(f"Site build completed successfully in {total_time:.2f} seconds.")
         self.logger.info(f"Total posts generated: {self.posts_generated}")
         self.logger.info(f"Total pages generated: {self.pages_generated}")
+        self.logger.info(f"Total images converted to WebP: {self.image_conversion_count}")
 
 def resolve_output_path(output_dir):
     # If the output path starts with "~/", expand it to the user's home directory
@@ -281,7 +418,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Resolve the output directory path
-    output_dir = resolve_output_path(args.output)
+    output_dir = os.path.expanduser(args.output)
 
     # Create a generator with the specified output directory, posts per page, and sorting method
     generator = Stattic(output_dir=output_dir, posts_per_page=args.posts_per_page, sort_by=args.sort_by)
