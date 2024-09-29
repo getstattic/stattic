@@ -1,4 +1,5 @@
 import os
+import shutil
 import markdown
 import yaml
 import argparse
@@ -18,6 +19,8 @@ class Stattic:
         self.templates_dir = templates_dir
         self.output_dir = output_dir
         self.images_dir = os.path.join(output_dir, 'images')  # Images directory for downloads
+        self.assets_src_dir = os.path.join(os.path.dirname(__file__), 'assets')  # Local assets folder
+        self.assets_output_dir = os.path.join(output_dir, 'assets')  # Output folder for assets
         self.env = Environment(loader=FileSystemLoader(self.templates_dir))
         self.posts = []  # Store metadata of all posts for index, archive, and RSS generation
         self.pages = []  # Track pages for navigation
@@ -41,17 +44,41 @@ class Stattic:
         # Ensure pages are loaded before generating posts or pages
         self.load_pages()
 
+    def setup_logging(self):
+        """Setup the logger to write both to a file and the console."""
+        logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+        os.makedirs(logs_dir, exist_ok=True)
+
+        log_file = os.path.join(logs_dir, f"stattic_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
+
+        logger = logging.getLogger('stattic')
+        logger.setLevel(logging.DEBUG)
+
+        fh = logging.FileHandler(log_file)
+        fh.setLevel(logging.DEBUG)
+
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        fh.setFormatter(formatter)
+        ch.setFormatter(formatter)
+
+        logger.addHandler(fh)
+        logger.addHandler(ch)
+
+        self.logger = logger
+        self.logger.info(f"Logging initialized. Logs stored at {log_file}")
+
+        return log_file
+
     def load_categories_and_tags(self):
         """Load categories and tags from YAML files."""
         try:
             with open(os.path.join(self.content_dir, 'categories.yml'), 'r') as cat_file:
                 self.categories = yaml.safe_load(cat_file)
-                if isinstance(self.categories, list):
-                    self.categories = {cat['id']: cat for cat in self.categories if isinstance(cat, dict) and 'id' in cat}
             with open(os.path.join(self.content_dir, 'tags.yml'), 'r') as tag_file:
                 self.tags = yaml.safe_load(tag_file)
-                if isinstance(self.tags, list):
-                    self.tags = {tag['id']: tag for tag in self.tags if isinstance(tag, dict) and 'id' in tag}
             self.logger.info(f"Loaded {len(self.categories)} categories and {len(self.tags)} tags")
         except FileNotFoundError as e:
             self.logger.error(f"YAML file not found: {e}")
@@ -82,34 +109,6 @@ class Stattic:
         except Exception as e:
             self.logger.error(f"Failed to load pages: {e}")
 
-    def setup_logging(self):
-        """Setup the logger to write both to a file and the console."""
-        logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
-        os.makedirs(logs_dir, exist_ok=True)
-
-        log_file = os.path.join(logs_dir, f"stattic_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
-
-        logger = logging.getLogger('stattic')
-        logger.setLevel(logging.DEBUG)
-
-        fh = logging.FileHandler(log_file)
-        fh.setLevel(logging.DEBUG)
-
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
-
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        fh.setFormatter(formatter)
-        ch.setFormatter(formatter)
-
-        logger.addHandler(fh)
-        logger.addHandler(ch)
-
-        self.logger = logger
-        self.logger.info(f"Logging initialized. Logs stored at {log_file}")
-
-        return log_file
-
     def download_image(self, url, output_dir):
         """Download an image and save it locally."""
         try:
@@ -130,23 +129,27 @@ class Stattic:
             self.logger.error(f"Failed to download image {url}: {e}")
             return None
 
-    def convert_image_to_webp(self, image_path):
-        """Convert an image to WebP format and delete the original."""
+    def copy_assets_to_output(self):
+        """Copy the local assets folder (CSS, JS, etc.) to the output directory."""
         try:
-            img = Image.open(image_path)
-            webp_path = image_path.rsplit('.', 1)[0] + '.webp'
-            img.save(webp_path, 'WEBP')
-            self.logger.info(f"Converted image to WebP: {webp_path}")
-            
-            # Remove the original image file to save space
-            os.remove(image_path)
-            self.logger.info(f"Removed original image: {image_path}")
-            
-            self.image_conversion_count += 1  # Increment conversion count
-            return webp_path
+            if os.path.exists(self.assets_src_dir):
+                # Copy the entire assets directory to the output directory
+                shutil.copytree(self.assets_src_dir, self.assets_output_dir, dirs_exist_ok=True)
+                self.logger.info(f"Copied assets to {self.assets_output_dir}")
+            else:
+                self.logger.error(f"Assets directory not found: {self.assets_src_dir}")
         except Exception as e:
-            self.logger.error(f"Failed to convert {image_path} to WebP: {e}")
-            return None
+            self.logger.error(f"Failed to copy assets: {e}")
+            raise
+
+    def create_output_dir(self):
+        """Create the output directory if it doesn't exist, and copy assets."""
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+            self.logger.info(f"Created output directory: {self.output_dir}")
+
+        # Ensure that the assets are copied to the output directory
+        self.copy_assets_to_output()
 
     def process_images(self, content):
         """Find all image URLs in the content, download, and convert them."""
@@ -200,12 +203,6 @@ class Stattic:
         except Exception as e:
             self.logger.error(f"Failed to parse markdown file: {filepath} - {e}")
             raise
-
-    def create_output_dir(self):
-        """Create the output directory if it doesn't exist."""
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
-            self.logger.info(f"Created output directory: {self.output_dir}")
 
     def get_markdown_files(self, directory):
         """Retrieve a list of Markdown files in a given directory."""
