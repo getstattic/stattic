@@ -2,3 +2,4 @@ node_modules/*
 my-site/*
 content/*
 logs/*
+wpImport.py
