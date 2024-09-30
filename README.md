@@ -64,7 +64,7 @@
 2. To generate the static site, run:
 
     ```
-    python stattic.py
+    python3 stattic.py
     ```
 
 3. The generated HTML files will be in the `output/` directory.
@@ -72,7 +72,7 @@
 4. To enable watch mode (rebuild on file change), use:
 
     ```
-    python stattic.py --watch
+    python3 stattic.py --watch
     ```
 
 ---
@@ -121,7 +121,7 @@ Set custom URLs for posts in the frontmatter using the `custom_url` key.
 When developing, Stattic offers a watch mode that automatically rebuilds the site when it detects changes in your content or templates.
 
 ```
-python stattic.py --watch
+python3 stattic.py --watch
 ```
 
 ---
