@@ -497,7 +497,7 @@ class Stattic:
                 'title': metadata.get('title', 'Untitled'),
                 'excerpt': metadata.get('excerpt', self.generate_excerpt(md_content)),
                 'permalink': f"/posts/{post_slug}/",
-                'date': metadata.get('date', 'Unknown')
+                'date': metadata.get('date', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             }
             self.posts.append(post_metadata)
 
@@ -570,7 +570,7 @@ class Stattic:
 
         # Build additional pages (index, static pages)
         self.build_index_page()
-        self.build_static_pages()
+        # self.build_static_pages()
 
         # Minify assets if --minify is enabled
         if args.minify:
