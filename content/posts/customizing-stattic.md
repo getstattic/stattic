@@ -186,18 +186,6 @@ Here's a quick reference for some of the most useful command-line arguments in S
   </tbody>
 </table>
 
-## Conclusion
-
-**Stattic** is designed to be flexible and adaptable to your needs, and these command-line arguments help you get the most out of it. 
-
-Whether you're optimizing your site for production with `--minify`, or downloading your favorite Google Fonts with `--fonts`, you have complete control over the build process.
-
-Feel free to experiment with these arguments and create a workflow that works best for you!
-
-Happy building!
-
-
-
 
 ## Additional Features in Stattic
 
@@ -222,9 +210,9 @@ This allows you to include advanced markdown features in your posts and pages.
 
 You can specify custom templates for individual posts or pages by adding a `template` field to the frontmatter of your markdown files. For example:
 
-***yaml
+```
 template: my_custom_template
-***
+``` 
 
 Stattic will use the `my_custom_template.html` file from the `templates` directory when generating the HTML.
 
@@ -232,20 +220,20 @@ Stattic will use the `my_custom_template.html` file from the `templates` directo
 
 Stattic loads categories, tags, and author information from YAML files located in the `content/` directory. These YAML files allow you to organize your content more easily. Here's an example of how to define a category in `categories.yml`:
 
-***yaml
+```
 1:
   name: "Category One"
 2:
   name: "Category Two"
-***
+``` 
 
 In your posts, you can reference these categories by their ID:
 
-***yaml
+```
 categories:
   - 1
   - 2
-***
+``` 
 
 The same applies to tags (`tags.yml`) and authors (`authors.yml`).
 
@@ -253,7 +241,15 @@ The same applies to tags (`tags.yml`) and authors (`authors.yml`).
 
 You can create static pages (such as a contact page) using templates. To generate static pages, Stattic uses the `build_static_pages()` method. An example page is the Contact page, which can be created by specifying a template like `page.html`:
 
-***html
-<h1>Contact Us</h1>
-<p>Contact page content goes here.</p>
-***
+`<h1>Contact Us</h1><p>Contact page content goes here.</p>`
+
+## Conclusion
+
+**Stattic** is designed to be flexible and adaptable to your needs, and these command-line arguments help you get the most out of it. 
+
+Whether you're optimizing your site for production with `--minify`, or downloading your favorite Google Fonts with `--fonts`, you have complete control over the build process.
+
+Feel free to experiment with these arguments and create a workflow that works best for you!
+
+Happy building!
+
