@@ -25,7 +25,7 @@ Here's what you can expect when you build with Stattic:
 
 ### 1. **Blazing Fast Page Loads**
 
-With Stattic, you can forget about slow load times. Stattic sites are **static HTML** at their core, meaning no server-side rendering or database calls are needed. Every page is pre-rendered and ready to be served instantly, resulting in blazing fast page loads. Say goodbye to that dreaded **"waiting for the database"** delay that can leave your visitors hanging on WordPress.
+With Stattic, you can forget about slow load times. [Stattic](https://stattic.site) sites are **static HTML** at their core, meaning no server-side rendering or database calls are needed. Every page is pre-rendered and ready to be served instantly, resulting in blazing fast page loads. Say goodbye to that dreaded **"waiting for the database"** delay that can leave your visitors hanging on WordPress.
 
 ### 2. **No Database, No Problem**
 
@@ -79,4 +79,4 @@ If you're ready to leave behind the heavy lifting of WordPress and try something
 
 Welcome to the world of Stattic – where speed, simplicity, and security come first.
 
-Ready to build your first Stattic site? Check out the [getting started guide](/customizing-stattic) and get started today!
+Ready to build your first Stattic site? Check out the [getting started guide](/posts/customizing-stattic/) and get started today!

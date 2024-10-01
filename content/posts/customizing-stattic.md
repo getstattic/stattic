@@ -144,14 +144,47 @@ This will:
 
 Here's a quick reference for some of the most useful command-line arguments in Stattic:
 
-| Argument                 | Description                                              | Example Usage                |
-|--------------------------|----------------------------------------------------------|------------------------------|
-| `--output=<path>`        | Specify the output directory for the generated site.     | `--output=output`            |
-| `--minify`               | Minify CSS and JS into single files.                     | `--minify`                   |
-| `--fonts=<fonts>`        | Download and include Google Fonts.                       | `--fonts="Lato, Montserrat"` |
-| `--posts-per-page=<num>` | Set the number of posts to display per page.             | `--posts-per-page=10`        |
-| `--sort-by=<option>`     | Sort posts by date, title, or author.                    | `--sort-by=title`            |
-| `--watch`                | Watch for file changes and automatically rebuild.        | `--watch`                    |
+<table>
+  <thead>
+    <tr>
+      <th>Argument</th>
+      <th>Description</th>
+      <th>Example Usage</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>--output=&lt;path&gt;</code></td>
+      <td>Specify the output directory for the generated site.</td>
+      <td><code>--output=output</code></td>
+    </tr>
+    <tr>
+      <td><code>--minify</code></td>
+      <td>Minify CSS and JS into single files.</td>
+      <td><code>--minify</code></td>
+    </tr>
+    <tr>
+      <td><code>--fonts=&lt;fonts&gt;</code></td>
+      <td>Download and include Google Fonts.</td>
+      <td><code>--fonts="Lato, Montserrat"</code></td>
+    </tr>
+    <tr>
+      <td><code>--posts-per-page=&lt;num&gt;</code></td>
+      <td>Set the number of posts to display per page.</td>
+      <td><code>--posts-per-page=10</code></td>
+    </tr>
+    <tr>
+      <td><code>--sort-by=&lt;option&gt;</code></td>
+      <td>Sort posts by date, title, or author.</td>
+      <td><code>--sort-by=title</code></td>
+    </tr>
+    <tr>
+      <td><code>--watch</code></td>
+      <td>Watch for file changes and automatically rebuild.</td>
+      <td><code>--watch</code></td>
+    </tr>
+  </tbody>
+</table>
 
 ## Conclusion
 
@@ -163,3 +196,64 @@ Feel free to experiment with these arguments and create a workflow that works be
 
 Happy building!
 
+
+
+
+## Additional Features in Stattic
+
+### Logging System
+
+Stattic includes a robust logging system that records both INFO and DEBUG level logs. Logs are saved in a `/logs` folder with a timestamped filename. The logs can help in debugging and monitoring the build process.
+
+### Image Conversion to WebP
+
+Stattic automatically downloads images referenced in your markdown content and converts them to WebP format for optimal performance. These images are stored in the `output/images/` folder, and the URLs in your content are replaced with local paths to the WebP versions.
+
+### Markdown to HTML Conversion with Mistune
+
+Stattic uses the Mistune library to convert markdown content to HTML. Mistune supports various plugins, including:
+- Task lists
+- Tables
+- Strikethrough text
+
+This allows you to include advanced markdown features in your posts and pages.
+
+### Custom Templates for Posts and Pages
+
+You can specify custom templates for individual posts or pages by adding a `template` field to the frontmatter of your markdown files. For example:
+
+***yaml
+template: my_custom_template
+***
+
+Stattic will use the `my_custom_template.html` file from the `templates` directory when generating the HTML.
+
+### Categories, Tags, and Authors from YAML
+
+Stattic loads categories, tags, and author information from YAML files located in the `content/` directory. These YAML files allow you to organize your content more easily. Here's an example of how to define a category in `categories.yml`:
+
+***yaml
+1:
+  name: "Category One"
+2:
+  name: "Category Two"
+***
+
+In your posts, you can reference these categories by their ID:
+
+***yaml
+categories:
+  - 1
+  - 2
+***
+
+The same applies to tags (`tags.yml`) and authors (`authors.yml`).
+
+### Static Pages
+
+You can create static pages (such as a contact page) using templates. To generate static pages, Stattic uses the `build_static_pages()` method. An example page is the Contact page, which can be created by specifying a template like `page.html`:
+
+***html
+<h1>Contact Us</h1>
+<p>Contact page content goes here.</p>
+***
