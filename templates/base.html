@@ -3,9 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} | Stattic</title>
+    <title>{% if title %}{{ title }} | {% endif %}Stattic</title>
 
-    <link href="/assets/css/tailwind.min.css" rel="stylesheet" rel="preload" />
+    <meta name="description" content="{% if seo_description %}{{ seo_description }}{% else %}Stattic is a fast, lightweight static site generator that optimizes images, supports custom fonts, and easily integrates with GitHub Pages for quick, SEO-friendly site deployment without the bloat of traditional CMS platforms like WordPress.{% endif %}">
+    <meta name="keywords" content="{% if seo_keywords %}{{ seo_keywords }}{% else %}SSG, Static Site Generator{% endif %}">
+    <meta name="author" content="{% if author %}{{ author }}{% else %}Robert DeVore{% endif %}">
+  
+    <link href="/assets/css/tailwind.min.css" rel="stylesheet" rel="preload" media="print" onload="this.media='all'" />
     {% if minify %}
         <link rel="stylesheet" href="/assets/css/main.min.css">
     {% else %}
