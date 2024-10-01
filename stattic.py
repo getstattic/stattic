@@ -51,6 +51,13 @@ class Stattic:
         # Ensure pages are loaded before generating posts or pages
         self.load_pages()
 
+        # Add custom markdown filter
+        self.env.filters['markdown'] = self.markdown_filter
+
+    def markdown_filter(self, text):
+        """Convert markdown text to HTML."""
+        return markdown.markdown(text)
+
     def setup_logging(self):
         """Setup the logger to write both to a file and the console."""
         logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
@@ -407,7 +414,13 @@ class Stattic:
             for cat_id in metadata.get('categories', []):
                 if isinstance(cat_id, int):
                     category = self.categories.get(cat_id, {})
-                    post_categories.append(category.get('name', f"Unknown (ID: {cat_id})"))
+                    # Check if category is a dictionary or a string
+                    if isinstance(category, dict):
+                        post_categories.append(category.get('name', f"Unknown (ID: {cat_id})"))
+                    elif isinstance(category, str):
+                        post_categories.append(category)  # Use the string directly
+                    else:
+                        self.logger.error(f"Invalid category format for ID: {cat_id}")
                 else:
                     self.logger.error(f"Invalid category ID: {cat_id}")
 
