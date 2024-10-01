@@ -1,9 +1,14 @@
 ---
 title: "Customizing Stattic: Command-Line Arguments for Stattic"
 custom_url: customizing-stattic
-author: Admin
-date: 2024-09-28
-tags: ['customization', 'command-line', 'minify', 'fonts', 'guide']
+author: 1
+date: 2024-09-29
+categories:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
 ---
 
 Stattic is a flexible static site generator that lets you customize the way your site is built through a variety of command-line arguments. These arguments allow you to minify files, choose fonts, change the number of posts per page, and more.

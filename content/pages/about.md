@@ -1,7 +1,7 @@
 ---
 title: About Stattic
 custom_url: about
-author: "Admin"
+author: 1
 date: 2024-09-29
 tags: ['about', 'static site generator', 'wordpress', 'wpdrama']
 ---

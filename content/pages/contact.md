@@ -1,7 +1,7 @@
 ---
 title: Contact Us
 custom_url: contact
-author: "Admin"
+author: 1
 date: 2024-09-28
 tags: ['contact', 'support']
 ---

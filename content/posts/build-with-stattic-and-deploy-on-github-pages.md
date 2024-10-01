@@ -1,19 +1,22 @@
 ---
 title: "How to Build and Deploy Your Website with Stattic and GitHub Pages"
 custom_url: build-with-stattic-and-deploy-on-github-pages
-author: Admin
-date: 2024-09-27
-tags: ['customization', 'command-line', 'minify', 'fonts', 'guide']
+author: 1
+date: 2024-09-28
+categories:
+  - 5
+  - 6
+  - 7
 ---
 
-With Stattic, you can easily build a static site and deploy it to [GitHub Pages](https://pages.github.com/){:target="_blank"} for free hosting. This guide will walk you through how to create your site, export the build files to a GitHub repository, and automate your workflow to push updates live.
+With Stattic, you can easily build a static site and deploy it to [GitHub Pages](https://pages.github.com/) for free hosting. This guide will walk you through how to create your site, export the build files to a GitHub repository, and automate your workflow to push updates live.
 
 ## Prerequisites
 
 Before we start, make sure you have the following:
 
--   **GitHub Account**: [Sign up](https://github.com/){:target="_blank"} if you don't have one.
--   **Git Installed**: You can download and install Git from [here](https://git-scm.com/downloads){:target="_blank"}.
+-   **GitHub Account**: [Sign up](https://github.com/) if you don't have one.
+-   **Git Installed**: You can download and install Git from [here](https://git-scm.com/downloads).
 -   **Stattic Installed**: Make sure you have Stattic set up on your machine. If not, follow the installation instructions.
 
 * * * * *
@@ -44,7 +47,7 @@ First, generate your site's content using Stattic.
 
 1.  **Create a New GitHub Repository**
 
-    -   Go to [GitHub](https://github.com/){:target="_blank"} and create a new repository. Name it `your-username.github.io` if you want to use [GitHub Pages](https://pages.github.com/){:target="_blank"} (replace `your-username` with your actual GitHub username).
+    -   Go to [GitHub](https://github.com/) and create a new repository. Name it `your-username.github.io` if you want to use [GitHub Pages](https://pages.github.com/) (replace `your-username` with your actual GitHub username).
 
 2.  **Clone the Repository Locally** - Open your terminal, navigate to the directory where you want to clone your repository, and run:
 
@@ -120,7 +123,7 @@ Whenever you update your content, rebuilding and deploying the site is quick and
 
 * * * * *
 
-Using Stattic with [GitHub Pages](https://pages.github.com/){:target="_blank"} is a fast and efficient way to manage and host static websites. You can:
+Using Stattic with [GitHub Pages](https://pages.github.com/) is a fast and efficient way to manage and host static websites. You can:
 
 -   Generate optimized static files with Stattic.
 -   Use GitHub Pages for free, easy hosting.

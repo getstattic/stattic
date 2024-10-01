@@ -1,9 +1,14 @@
 ---
 title: Say Hello to Stattic
 custom_url: say-hello-to-stattic
-author: Admin
-date: 2024-09-29
-tags: ['introduction', 'static site generator', 'wordpress alternative']
+author: 1
+date: 2024-09-30
+categories:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
 ---
 
 Welcome to **Stattic**, the lightweight, no-fuss, modern static site generator that's changing the way websites are built. If you've ever been frustrated with the complexity, sluggishness, and endless database queries of traditional content management systems (yes, we're looking at you, **WordPress**), then Stattic is here to offer a better way forward.
