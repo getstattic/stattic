@@ -3,6 +3,7 @@ title: Contact Us
 custom_url: contact
 author: 1
 date: 2024-09-28
+order: 2
 ---
 
 ## Get in Touch
