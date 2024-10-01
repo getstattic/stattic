@@ -12,6 +12,7 @@ import requests
 from PIL import Image
 import csscompressor
 import rjsmin
+import mistune
 
 GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap'
 
@@ -55,8 +56,21 @@ class Stattic:
         self.env.filters['markdown'] = self.markdown_filter
 
     def markdown_filter(self, text):
-        """Convert markdown text to HTML."""
-        return markdown.markdown(text, extensions=['tables'])
+        """Convert markdown text to HTML using Mistune 2.x."""
+        start_time = time.time()
+
+        # Initialize Mistune with the necessary plugins including tables and task lists
+        markdown = mistune.create_markdown(renderer=mistune.HTMLRenderer(), plugins=['table', 'task_lists', 'strikethrough'])
+
+        # Convert the markdown text to HTML
+        html_output = markdown(text)
+
+        end_time = time.time()
+
+        # Log the HTML output for debugging purposes
+        self.logger.info(f"Converted Markdown to HTML using Mistune (Time taken: {end_time:.2f} seconds)")
+
+        return html_output
 
     def setup_logging(self):
         """Setup the logger to write both to a file and the console."""
@@ -370,15 +384,23 @@ class Stattic:
             with open(filepath, 'r') as f:
                 content = f.read()
 
-            # Split frontmatter (YAML) and markdown body
+            # Check if the content contains frontmatter (starts with ---)
             if content.startswith('---'):
-                frontmatter, markdown_content = content.split('---', 2)[1:]
-                metadata = yaml.safe_load(frontmatter)
+                # Split into frontmatter and content
+                parts = content.split('---', 2)  # Splitting into 3 parts: '', frontmatter, content
+                if len(parts) == 3:  # Proper frontmatter and content found
+                    frontmatter, markdown_content = parts[1], parts[2]
+                    metadata = yaml.safe_load(frontmatter) or {}
+                else:
+                    # Malformed frontmatter, fallback to handling as plain markdown
+                    self.logger.warning(f"Malformed frontmatter in {filepath}. Treating entire content as markdown.")
+                    metadata, markdown_content = {}, content
             else:
-                metadata = {}
-                markdown_content = content
+                # No frontmatter at all, treat entire content as markdown
+                self.logger.info(f"No frontmatter in {filepath}. Treating as pure markdown.")
+                metadata, markdown_content = {}, content
 
-            # Process and download images from the markdown content
+            # Process images in the markdown content
             markdown_content = self.process_images(markdown_content)
 
             duration = time.time() - start_time
@@ -523,7 +545,7 @@ class Stattic:
             # Collect post metadata for the index page
             post_metadata = {
                 'title': metadata.get('title', 'Untitled'),
-                'excerpt': metadata.get('excerpt', self.generate_excerpt(md_content)),
+                'excerpt': self.markdown_filter(metadata.get('excerpt', self.generate_excerpt(md_content))),
                 'permalink': f"/posts/{post_slug}/",
                 'date': metadata.get('date', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             }
@@ -553,6 +575,8 @@ class Stattic:
 
     def generate_excerpt(self, content):
         """Generate an excerpt from the post content if no excerpt is provided."""
+        if not content:
+            return ''
         words = content.split()[:30]  # Take the first 30 words
         return ' '.join(words) + '...'
 
