@@ -8,7 +8,7 @@
     <img src="{{ featured_image }}" alt="{{ title }}" class="rounded-lg my-4 w-full h-auto">
     {% endif %}
     <div class="stattic-content mb-12">
-        {{ content | safe }} <!-- Allows rendered Markdown HTML to be injected safely -->
+        {{ content | safe }}
     </div>
 </article>
 {% endblock %}
