@@ -9,12 +9,12 @@
     <meta name="keywords" content="{% if seo_keywords %}{{ seo_keywords }}{% else %}SSG, Static Site Generator{% endif %}">
     <meta name="author" content="{% if author %}{{ author }}{% else %}Robert DeVore{% endif %}">
   
-    <link href="/assets/css/tailwind.min.css" rel="stylesheet" rel="preload" media="print" onload="this.media='all'" as="style">
+    <link href="/assets/css/tailwind.min.css" rel="stylesheet" rel="preload" media="print" onload="this.media='all'">
     {% if minify %}
-        <link rel="stylesheet" href="/assets/css/main.min.css">
+        <link rel="stylesheet" href="/assets/css/main.min.css" rel="preload">
     {% else %}
-        <link rel="stylesheet" href="/assets/css/style.css" rel="preload" as="style">
-        <link rel="stylesheet" href="/assets/css/fonts.css" rel="preload" as="style">
+        <link rel="stylesheet" href="/assets/css/style.css" rel="preload">
+        <link rel="stylesheet" href="/assets/css/fonts.css" rel="preload">
     {% endif %}
 
     <!-- Alpine.js for interactive components -->
