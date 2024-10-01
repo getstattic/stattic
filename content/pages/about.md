@@ -1,9 +1,9 @@
 ---
-title: About Stattic
+title: "About Stattic"
 custom_url: about
 author: 1
 date: 2024-09-29
-tags: ['about', 'static site generator', 'wordpress', 'wpdrama']
+template: about
 ---
 
 Stattic is a lightweight and powerful **static site generator** designed for developers, freelancers, and small businesses looking for an easy-to-use, fast, and secure solution for building websites. Instead of dealing with complex databases, heavy server-side processing, and constant updates, Stattic focuses on simplicity and performance by generating static HTML files that can be served anywhere, whether it’s a CDN, cloud storage, or a basic web server.

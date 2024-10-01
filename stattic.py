@@ -414,7 +414,6 @@ class Stattic:
             for cat_id in metadata.get('categories', []):
                 if isinstance(cat_id, int):
                     category = self.categories.get(cat_id, {})
-                    # Check if category is a dictionary or a string
                     if isinstance(category, dict):
                         post_categories.append(category.get('name', f"Unknown (ID: {cat_id})"))
                     elif isinstance(category, str):
@@ -432,8 +431,14 @@ class Stattic:
                 else:
                     self.logger.error(f"Invalid tag ID: {tag_id}")
 
+            # Get the template part from the frontmatter
+            template_part = metadata.get('template', 'default')
+            
+            # Construct the full template name dynamically, e.g., post-about.html
+            template_name = f"post-{template_part}.html" if not is_page else f"page-{template_part}.html"
+
             rendered_html = self.render_template(
-                'page.html' if is_page else 'post.html',
+                template_name,
                 content=html_content,
                 title=title,
                 author=author_name,

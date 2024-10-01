@@ -1,5 +1,5 @@
 ---
-title: "How to Build and Deploy Your Website with Stattic and GitHub Pages"
+title: How to Build and Deploy Your Website with Stattic and GitHub Pages
 custom_url: build-with-stattic-and-deploy-on-github-pages
 author: 1
 date: 2024-09-28
