@@ -56,7 +56,7 @@ class Stattic:
 
     def markdown_filter(self, text):
         """Convert markdown text to HTML."""
-        return markdown.markdown(text)
+        return markdown.markdown(text, extensions=['tables'])
 
     def setup_logging(self):
         """Setup the logger to write both to a file and the console."""
@@ -178,11 +178,18 @@ class Stattic:
                 if isinstance(title, dict):
                     title = title.get('rendered', 'Untitled')
 
+                # Get the order from frontmatter or default to a high number for unordered pages
+                order = metadata.get('order', 100)
+
                 # Add page metadata to self.pages
                 self.pages.append({
                     'title': title,
-                    'permalink': f"/{metadata.get('custom_url', page_file.replace('.md', ''))}/"
+                    'permalink': f"/{metadata.get('custom_url', page_file.replace('.md', ''))}/",
+                    'order': order
                 })
+
+            # Sort pages by the order field
+            self.pages = sorted(self.pages, key=lambda x: x['order'])
 
             self.logger.info(f"Loaded {len(self.pages)} pages for navigation")
 
@@ -431,11 +438,14 @@ class Stattic:
                 else:
                     self.logger.error(f"Invalid tag ID: {tag_id}")
 
-            # Get the template part from the frontmatter
-            template_part = metadata.get('template', 'default')
-            
-            # Construct the full template name dynamically, e.g., post-about.html
-            template_name = f"post-{template_part}.html" if not is_page else f"page-{template_part}.html"
+            # Get the template part from the frontmatter or fallback to 'post.html' or 'page.html'
+            template_part = metadata.get('template', None)
+
+            # If no template is specified, fallback to post.html or page.html
+            if template_part:
+                template_name = f"post-{template_part}.html" if not is_page else f"page-{template_part}.html"
+            else:
+                template_name = 'page.html' if is_page else 'post.html'
 
             rendered_html = self.render_template(
                 template_name,
