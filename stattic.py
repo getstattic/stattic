@@ -5,7 +5,7 @@ import yaml
 import argparse
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, date
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, TemplateSyntaxError
 import re
 import requests
@@ -589,8 +589,27 @@ class Stattic:
     def build_index_page(self):
         """Render and build the index (homepage) with the list of posts."""
         try:
-            # Sort posts by date, and limit them based on posts_per_page
-            posts_for_index = sorted(self.posts, key=lambda post: post['date'], reverse=True)[:self.posts_per_page]
+            # Helper function to convert all date objects to datetime for consistent comparison
+            def get_post_date(post):
+                post_date = post.get('date', None)
+                if post_date:
+                    # If post_date is a date object (without time), convert it to datetime
+                    if isinstance(post_date, date) and not isinstance(post_date, datetime):
+                        return datetime.combine(post_date, datetime.min.time())  # Add time component to date
+                    # If it's already a datetime, return as is
+                    elif isinstance(post_date, datetime):
+                        return post_date
+                    # If it's a string, attempt to parse it
+                    elif isinstance(post_date, str):
+                        try:
+                            return datetime.strptime(post_date, "%Y-%m-%dT%H:%M:%S")
+                        except ValueError:
+                            self.logger.warning(f"Invalid date format in post: {post['title']} - using default date.")
+                            return datetime.min  # Return a minimal date if parsing fails
+                return datetime.min  # Use a minimal date if date is missing
+
+            # Ensure that all dates are converted before sorting
+            posts_for_index = sorted(self.posts, key=get_post_date, reverse=True)[:self.posts_per_page]
 
             # Render the index.html template with the list of posts and pages for the menu
             rendered_html = self.render_template('index.html', posts=posts_for_index, pages=self.pages)

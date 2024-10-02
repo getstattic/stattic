@@ -1,8 +1,27 @@
-0: "Decentralized Publishing"
-1: "Customization"
-2: "Command-line"
-3: "Minify"
-4: "Fonts"
-5: "Guide"
-6: "GitHub Pages"
-7: "Static Site Generator"
+1:
+  id: 1
+  name: General
+123:
+  id: 123
+  name: Business
+125:
+  id: 125
+  name: Marketing
+126:
+  id: 126
+  name: Open Source
+127:
+  id: 127
+  name: Personal
+128:
+  id: 128
+  name: Privacy
+129:
+  id: 129
+  name: Tutorials
+209:
+  id: 209
+  name: Stock Trading
+215:
+  id: 215
+  name: Security
