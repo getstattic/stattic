@@ -2,7 +2,7 @@
 title: Say Hello to Stattic
 custom_url: say-hello-to-stattic
 author: 1
-date: 2024-09-30
+date: 2024-10-02
 categories:
   - 1
   - 2
@@ -11,19 +11,23 @@ categories:
   - 5
 ---
 
-Welcome to **Stattic**, the lightweight, no-fuss, modern static site generator that's changing the way websites are built. If you've ever been frustrated with the complexity, sluggishness, and endless database queries of traditional content management systems (yes, we're looking at you, **WordPress**), then Stattic is here to offer a better way forward.
+Welcome to **Stattic**, the lightweight, no-fuss, modern static site generator that's changing the way websites are built. 
+
+If you've ever been frustrated with the sluggishness, archaic architecture and endless database queries of traditional content management systems (yes, we're looking at you, **WordPress**), then Stattic is here to offer a better way forward.
 
 ## What is Stattic?
 
-Stattic is a **static site generator** designed for developers, content creators, and anyone who values **speed**, **simplicity**, and **security** in their website builds. Stattic takes your content, processes it with modern templating, and outputs pure **static HTML**, **CSS**, and **JavaScript** files that can be deployed anywhere – from simple web hosts to CDNs like Netlify or GitHub Pages.
+Stattic is a **static site generator** designed for developers, content creators, and anyone who values **speed**, **simplicity**, and **security** in their website builds. Stattic takes your content, processes it with modern templating, and outputs pure **static HTML**, **CSS**, and **JavaScript** files that can be deployed anywhere – from simple web hosts to CDNs like Netlify, Cloudflare Pages, or GitHub Pages.
 
 ### Why Stattic?
 
-In today's fast-paced web, users demand **speed** and **reliability**. While WordPress sites often fall victim to slow database calls, bloated plugins, and constant security patches, Stattic keeps things lean and mean.
+Users demand **speed** and **reliability**, which is what Stattic excels at. While sites powered by WordPress often fall victim to slow database calls, bloated plugins, and constant security patches, Stattic keeps things lean and mean.
 
 Here's what you can expect when you build with Stattic:
 
 ### 1. **Blazing Fast Page Loads**
+
+![Google Page Speed Insights](../images/google-pagespeed-insights.jpg)
 
 With Stattic, you can forget about slow load times. [Stattic](https://stattic.site) sites are **static HTML** at their core, meaning no server-side rendering or database calls are needed. Every page is pre-rendered and ready to be served instantly, resulting in blazing fast page loads. Say goodbye to that dreaded **"waiting for the database"** delay that can leave your visitors hanging on WordPress.
 

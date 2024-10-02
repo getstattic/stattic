@@ -543,7 +543,7 @@ class Stattic:
 
             # Determine the output directory for the post
             post_slug = metadata.get('custom_url', post_file.replace('.md', ''))
-            post_output_dir = os.path.join(self.output_dir, 'posts', post_slug)
+            post_output_dir = os.path.join(self.output_dir, 'blog', post_slug)
 
             # Render the post and write it to the output directory
             self.build_post_or_page(metadata, html_content, post_slug, post_output_dir, is_page=False)
@@ -552,7 +552,7 @@ class Stattic:
             post_metadata = {
                 'title': metadata.get('title', 'Untitled'),
                 'excerpt': self.markdown_filter(metadata.get('excerpt', self.generate_excerpt(md_content))),
-                'permalink': f"/posts/{post_slug}/",
+                'permalink': f"/blog/{post_slug}/",
                 'date': metadata.get('date', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             }
             self.posts.append(post_metadata)
