@@ -210,9 +210,28 @@ class Stattic:
         except Exception as e:
             self.logger.error(f"Failed to load pages: {e}")
 
-    def download_image(self, url, output_dir):
-        """Download an image and save it locally."""
+    def download_image(self, url, output_dir, markdown_file_path=None):
+        """Download an image and save it locally, or check if it's a local image."""
         try:
+            # Check if the URL is relative (starts with a slash or '..' indicating local reference)
+            if url.startswith('/') or url.startswith('../') or not url.startswith('http'):
+                # If markdown_file_path is provided, resolve the local path relative to it
+                if markdown_file_path:
+                    # Resolve the relative path based on the markdown file's directory
+                    markdown_dir = os.path.dirname(markdown_file_path)
+                    local_image_path = os.path.abspath(os.path.join(markdown_dir, url))
+                else:
+                    # Otherwise, resolve it relative to the content directory
+                    local_image_path = os.path.abspath(os.path.join(self.content_dir, url))
+
+                if os.path.exists(local_image_path):
+                    self.logger.info(f"Found local image: {local_image_path}")
+                    return local_image_path
+                else:
+                    self.logger.error(f"Local image not found: {local_image_path}")
+                    return None
+
+            # If it's not a local path, treat it as an external URL
             response = requests.get(url)
             response.raise_for_status()  # Ensure the request was successful
 
@@ -223,7 +242,7 @@ class Stattic:
             # Save the image
             with open(image_path, 'wb') as image_file:
                 image_file.write(response.content)
-            
+
             self.logger.info(f"Downloaded image: {url}")
             return image_path
         except requests.exceptions.RequestException as e:
