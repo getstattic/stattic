@@ -8,7 +8,7 @@
     <meta name="description" content="{% if seo_description %}{{ seo_description }}{% else %}Stattic is a fast, lightweight static site generator that optimizes images, supports custom fonts, and easily integrates with GitHub Pages for quick, SEO-friendly site deployment without the bloat of traditional CMS platforms like WordPress.{% endif %}">
     <meta name="keywords" content="{% if seo_keywords %}{{ seo_keywords }}{% else %}SSG, Static Site Generator{% endif %}">
     <meta name="author" content="{% if author %}{{ author }}{% else %}Robert DeVore{% endif %}">
-  
+
     <link href="/assets/css/tailwind.min.css" rel="stylesheet preload" as="style">
     {% if minify %}
         <link href="/assets/css/main.min.css" rel="stylesheet preload" as="style">
@@ -25,7 +25,7 @@
 <header class="bg-background shadow">
     <div class="container max-w-screen-xl m-auto py-6 px-4 flex justify-between">
         <h2 class="text-3xl font-bold quicksand-700"><a href="/" class="text-links">Stattic</a></h2>
-        
+
         <!-- Navigation Menu -->
         <nav>
             <ul class="flex space-x-6">
