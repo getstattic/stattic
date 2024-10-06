@@ -13,6 +13,10 @@ from PIL import Image
 import csscompressor
 import rjsmin
 import mistune
+from xml.sax.saxutils import escape
+from urllib.parse import urlparse
+from email.utils import formatdate
+from hashlib import md5
 
 GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap'
 
@@ -652,6 +656,92 @@ class Stattic:
             output_file.write(rendered_html)
         self.logger.info(f"Generated contact page: {output_dir}")
 
+    def generate_rss_feed(self, site_url, site_name=None):
+        """Generate an RSS feed from the list of posts."""
+        try:
+            # Ensure the site_url ends with a '/'
+            if not site_url.endswith('/'):
+                site_url += '/'
+
+            # Extract site name dynamically from the site_url domain if not provided
+            if not site_name:
+                parsed_url = urlparse(site_url)
+                site_name = parsed_url.netloc.replace('www.', '')  # Remove 'www.' if present
+
+            # Fix: Avoid adding 'https://' twice, use site_url directly for the feed URL
+            feed_url = f"{site_url.rstrip('/')}/feed/index.xml"
+
+            # RSS header information with proper escaping
+            rss_feed = """<?xml version="1.0" encoding="UTF-8" ?>
+    <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+    <title>{site_name}</title>
+    <link>{site_url}</link>
+    <description>{site_description}</description>
+    <atom:link href="{feed_url}" rel="self" type="application/rss+xml" />
+    <lastBuildDate>{build_date}</lastBuildDate>
+    <language>en-us</language>
+    """
+            # Site description using site_name
+            site_description = f"Latest posts from {escape(site_name)}"
+            build_date = formatdate(timeval=None, localtime=False, usegmt=True)  # RFC-822 format
+
+            # Format the RSS header with the site information
+            rss_feed = rss_feed.format(
+                site_name=escape(site_name),
+                site_url=escape(site_url),
+                site_description=site_description,
+                feed_url=escape(feed_url),  # Correctly set the feed URL
+                build_date=build_date
+            )
+
+            # Add each post to the RSS feed
+            for post in self.posts:
+                post_title = escape(post.get('title', 'Untitled'))  # Escape special characters
+                post_permalink = f"{site_url.rstrip('/')}/{post.get('permalink', '').lstrip('/')}"  # Fixing URL formatting
+
+                # Strip the <p> tags from the excerpt and ensure plain text, escape it
+                post_description = escape(re.sub(r'<.*?>', '', post.get('excerpt', 'No description available')))
+
+                # Try to parse the post date, handling different formats
+                post_date_str = post.get('date')
+                try:
+                    post_pubdate = datetime.strptime(post_date_str, '%Y-%m-%dT%H:%M:%S').strftime('%a, %d %b %Y %H:%M:%S +0000')
+                except ValueError:
+                    post_pubdate = datetime.strptime(post_date_str, '%Y-%m-%d %H:%M:%S').strftime('%a, %d %b %Y %H:%M:%S +0000')
+
+                # Generate a unique guid for each post (could be permalink-based hash)
+                guid = md5(post_permalink.encode('utf-8')).hexdigest()
+
+                rss_feed += f"""
+    <item>
+    <title>{post_title} - {site_name}</title>
+    <link>{post_permalink}</link>
+    <description>{post_description}</description>
+    <guid isPermaLink="false">{guid}</guid>
+    <pubDate>{post_pubdate}</pubDate>
+    </item>
+    """
+
+            # Close the RSS channel
+            rss_feed += """
+    </channel>
+    </rss>
+    """
+
+            # Output RSS feed to /feed/index.xml
+            rss_output_dir = os.path.join(self.output_dir, 'feed')
+            os.makedirs(rss_output_dir, exist_ok=True)
+            rss_output_file = os.path.join(rss_output_dir, 'index.xml')
+
+            with open(rss_output_file, 'w') as f:
+                f.write(rss_feed)
+
+            self.logger.info(f"Generated RSS feed at {rss_output_file}")
+
+        except Exception as e:
+            self.logger.error(f"Failed to generate RSS feed: {e}")
+
     def build(self):
         """Main method to generate the static site."""
         self.logger.info("Starting build process...")
@@ -691,6 +781,7 @@ if __name__ == "__main__":
     parser.add_argument('--posts-per-page', type=int, default=5, help='Number of posts per index page')
     parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author'], default='date', help='Sort posts by date, title, or author')
     parser.add_argument('--fonts', type=str, help='Comma-separated list of Google Fonts to download')
+    parser.add_argument('--site-url', type=str, required=True, help='Specify the site URL')
     parser.add_argument('--watch', action='store_true', help='Enable watch mode to automatically rebuild on file changes')
     parser.add_argument('--minify', action='store_true', help='Minify CSS and JS into single files')
 
@@ -706,3 +797,5 @@ if __name__ == "__main__":
     generator = Stattic(output_dir=output_dir, posts_per_page=args.posts_per_page, sort_by=args.sort_by, fonts=fonts)
 
     generator.build()
+
+    generator.generate_rss_feed(args.site_url)
