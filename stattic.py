@@ -17,6 +17,7 @@ from xml.sax.saxutils import escape
 from urllib.parse import urlparse
 from email.utils import formatdate
 from hashlib import md5
+import xml.etree.ElementTree as ET
 
 GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap'
 
@@ -742,6 +743,65 @@ class Stattic:
         except Exception as e:
             self.logger.error(f"Failed to generate RSS feed: {e}")
 
+    def generate_xml_sitemap(self, site_url):
+        """
+        Generate a proper XML sitemap.
+        """
+        try:
+            # Ensure the site_url ends with a '/'
+            if not site_url.endswith('/'):
+                site_url += '/'
+
+            # Collect entries for the sitemap
+            sitemap_entries = []
+
+            # Add the homepage
+            sitemap_entries.append(self.format_xml_sitemap_entry(site_url, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+
+            # Add URLs for posts
+            for post in self.posts:
+                post_permalink = f"{site_url.rstrip('/')}/{post.get('permalink', '').lstrip('/')}"
+                post_date = post.get('date', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                sitemap_entries.append(self.format_xml_sitemap_entry(post_permalink, post_date))
+
+            # Add URLs for pages
+            for page in self.pages:
+                page_permalink = f"{site_url.rstrip('/')}/{page.get('permalink', '').lstrip('/')}"
+                page_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                sitemap_entries.append(self.format_xml_sitemap_entry(page_permalink, page_date))
+
+            # Generate the full XML sitemap content
+            sitemap_xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        {''.join(sitemap_entries)}
+    </urlset>
+            """
+
+            # Write the XML sitemap to output/sitemap.xml
+            sitemap_output_file = os.path.join(self.output_dir, 'sitemap.xml')
+            with open(sitemap_output_file, 'w', encoding='utf-8') as f:
+                f.write(sitemap_xml_content)
+
+            self.logger.info(f"XML Sitemap generated at {sitemap_output_file}")
+
+        except Exception as e:
+            self.logger.error(f"Failed to generate XML sitemap: {e}")
+
+    def format_xml_sitemap_entry(self, url, lastmod):
+        escaped_url = escape(url)
+        escaped_lastmod = escape(lastmod)
+
+        # Debugging output
+        print(f"Escaped URL: {escaped_url}")
+        print(f"Escaped Lastmod: {escaped_lastmod}")
+
+        return f'''
+    <url>
+        <loc>{escaped_url}</loc>
+        <lastmod>{escaped_lastmod}</lastmod>
+    </url>
+        '''
+
     def build(self):
         """Main method to generate the static site."""
         self.logger.info("Starting build process...")
@@ -797,5 +857,5 @@ if __name__ == "__main__":
     generator = Stattic(output_dir=output_dir, posts_per_page=args.posts_per_page, sort_by=args.sort_by, fonts=fonts)
 
     generator.build()
-
     generator.generate_rss_feed(args.site_url)
+    generator.generate_xml_sitemap(args.site_url)
