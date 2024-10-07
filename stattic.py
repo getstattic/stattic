@@ -750,9 +750,7 @@ class Stattic:
             self.logger.error(f"Failed to generate RSS feed: {e}")
 
     def generate_xml_sitemap(self, site_url):
-        """
-        Generate a proper XML sitemap.
-        """
+        """Generate a proper XML sitemap."""
         try:
             # Ensure the site_url ends with a '/'
             if not site_url.endswith('/'):
@@ -762,18 +760,30 @@ class Stattic:
             sitemap_entries = []
 
             # Add the homepage
-            sitemap_entries.append(self.format_xml_sitemap_entry(site_url, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            sitemap_entries.append(self.format_xml_sitemap_entry(site_url, datetime.now()))
 
             # Add URLs for posts
             for post in self.posts:
                 post_permalink = f"{site_url.rstrip('/')}/{post.get('permalink', '').lstrip('/')}"
-                post_date = post.get('date', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                post_date_str = post.get('date', datetime.now())
+                
+                # Ensure post_date is a datetime object
+                if isinstance(post_date_str, str):
+                    try:
+                        post_date = datetime.strptime(post_date_str, '%Y-%m-%d %H:%M:%S')
+                    except ValueError:
+                        post_date = datetime.strptime(post_date_str, '%Y-%m-%dT%H:%M:%S')
+                elif isinstance(post_date_str, datetime):
+                    post_date = post_date_str
+                else:
+                    post_date = datetime.now()
+
                 sitemap_entries.append(self.format_xml_sitemap_entry(post_permalink, post_date))
 
             # Add URLs for pages
             for page in self.pages:
                 page_permalink = f"{site_url.rstrip('/')}/{page.get('permalink', '').lstrip('/')}"
-                page_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                page_date = datetime.now()  # Adjust this as necessary for your requirements
                 sitemap_entries.append(self.format_xml_sitemap_entry(page_permalink, page_date))
 
             # Generate the full XML sitemap content
@@ -796,8 +806,16 @@ class Stattic:
     def format_xml_sitemap_entry(self, url, lastmod):
         """Format a URL entry for the XML sitemap."""
         escaped_url = escape(url)
+        
+        # Ensure lastmod is a datetime and format it accordingly
         if isinstance(lastmod, datetime):
-            lastmod = lastmod.strftime('%Y-%m-%dT%H:%M:%SZ')  # Convert datetime to string format suitable for XML
+            lastmod = lastmod.strftime('%Y-%m-%dT%H:%M:%SZ')
+        elif isinstance(lastmod, str):
+            try:
+                # Attempt to parse the string to a datetime object
+                lastmod = datetime.strptime(lastmod, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%dT%H:%M:%SZ')
+            except ValueError:
+                lastmod = datetime.strptime(lastmod, '%Y-%m-%dT%H:%M:%S').strftime('%Y-%m-%dT%H:%M:%SZ')
 
         return f'''
     <url>
@@ -805,7 +823,6 @@ class Stattic:
         <lastmod>{escape(lastmod)}</lastmod>
     </url>
     '''
-
 
     def build_404_page(self):
         """Build and generate the 404 error page for GitHub Pages."""
