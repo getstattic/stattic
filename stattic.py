@@ -704,10 +704,16 @@ class Stattic:
                 # Strip the <p> tags from the excerpt and ensure plain text, escape it
                 post_description = escape(re.sub(r'<.*?>', '', post.get('excerpt', 'No description available')))
 
-                # Try to parse the post date, handling different formats
+                # Handle different formats for post date
                 post_date_str = post.get('date')
                 try:
-                    post_pubdate = datetime.strptime(post_date_str, '%Y-%m-%dT%H:%M:%S').strftime('%a, %d %b %Y %H:%M:%S +0000')
+                    if isinstance(post_date_str, datetime):
+                        post_pubdate = post_date_str.strftime('%a, %d %b %Y %H:%M:%S +0000')
+                    elif isinstance(post_date_str, str):
+                        post_pubdate = datetime.strptime(post_date_str, '%Y-%m-%dT%H:%M:%S').strftime('%a, %d %b %Y %H:%M:%S +0000')
+                    else:
+                        # Fallback to the current date if parsing fails
+                        post_pubdate = datetime.now().strftime('%a, %d %b %Y %H:%M:%S +0000')
                 except ValueError:
                     post_pubdate = datetime.strptime(post_date_str, '%Y-%m-%d %H:%M:%S').strftime('%a, %d %b %Y %H:%M:%S +0000')
 
@@ -788,19 +794,18 @@ class Stattic:
             self.logger.error(f"Failed to generate XML sitemap: {e}")
 
     def format_xml_sitemap_entry(self, url, lastmod):
+        """Format a URL entry for the XML sitemap."""
         escaped_url = escape(url)
-        escaped_lastmod = escape(lastmod)
-
-        # Debugging output
-        print(f"Escaped URL: {escaped_url}")
-        print(f"Escaped Lastmod: {escaped_lastmod}")
+        if isinstance(lastmod, datetime):
+            lastmod = lastmod.strftime('%Y-%m-%dT%H:%M:%SZ')  # Convert datetime to string format suitable for XML
 
         return f'''
     <url>
         <loc>{escaped_url}</loc>
-        <lastmod>{escaped_lastmod}</lastmod>
+        <lastmod>{escape(lastmod)}</lastmod>
     </url>
-        '''
+    '''
+
 
     def build_404_page(self):
         """Build and generate the 404 error page for GitHub Pages."""
