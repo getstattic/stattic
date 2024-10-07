@@ -802,6 +802,23 @@ class Stattic:
     </url>
         '''
 
+    def build_404_page(self):
+        """Build and generate the 404 error page for GitHub Pages."""
+        try:
+            # Define the path for the 404 page in the root of the output directory
+            output_file_path = os.path.join(self.output_dir, '404.html')
+
+            # Render the 404 page using the 404 template
+            rendered_html = self.render_template('404.html', title="Page Not Found", content="<p>The page you are looking for does not exist.</p>")
+            
+            # Write the rendered 404 HTML to the root directory
+            with open(output_file_path, 'w') as output_file:
+                output_file.write(rendered_html)
+
+            self.logger.info(f"Generated 404 page at {output_file_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to generate 404 page: {e}")
+
     def build(self):
         """Main method to generate the static site."""
         self.logger.info("Starting build process...")
@@ -816,7 +833,9 @@ class Stattic:
 
         # Build additional pages (index, static pages)
         self.build_index_page()
-        # self.build_static_pages()
+
+        # Build the 404 page
+        self.build_404_page()
 
         # Minify assets if --minify is enabled
         if args.minify:
