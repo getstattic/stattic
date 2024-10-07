@@ -9,6 +9,21 @@
     --text-accent: #F59E0B;
 }
 
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: #000;
+    color: #fff;
+    padding: 8px 16px;
+    text-decoration: none;
+    z-index: 100;
+}
+
+.skip-link:focus {
+    top: 0;
+}
+
 /* Existing Classes */
 .bg-primary {
     background-color: var(--primary-color);

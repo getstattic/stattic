@@ -22,7 +22,12 @@
 </head>
 <body class="bg-background text-primary quicksand-300">
 
-<header class="bg-background shadow">
+<!-- Skip Links for Accessibility -->
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<a href="#navigation" class="skip-link">Skip to navigation</a>
+<a href="#footer" class="skip-link">Skip to footer</a>
+
+<header class="bg-background shadow" id="navigation">
     <div class="container max-w-screen-xl m-auto py-6 px-4 flex justify-between">
         <h2 class="text-3xl font-bold quicksand-700"><a href="/" class="text-links">Stattic</a></h2>
 
@@ -39,13 +44,13 @@
     </div>
 </header>
 
-<main class="container max-w-2xl m-auto py-10 px-4">
+<main class="container max-w-2xl m-auto py-10 px-4" id="main-content">
     {% block content %}
     <!-- Page content will go here -->
     {% endblock %}
 </main>
 
-<footer class="bg-background border-t border-primary mt-10 py-6">
+<footer class="bg-background border-t border-primary mt-10 py-6" id="footer">
     <div class="container max-w-screen-xl m-auto px-4 text-center">
         <p>Get <a href="https://stattic.site/" target="_blank" class="text-links font-bold" aria-label="Stattic - opens in a new tab">Stattic</a></p>
     </div>
