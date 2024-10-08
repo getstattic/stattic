@@ -141,20 +141,24 @@ class Stattic:
         except Exception as e:
             self.logger.error(f"Failed to minify assets: {e}")
 
-    def format_date(self, date_str):
+    def format_date(self, date_str=None):
         """Format the date from 'YYYY-MM-DDTHH:MM:SS' to 'Month DD, YYYY'."""
+        if not date_str:
+            return ''  # Return an empty string if no date is provided
+
         try:
-            # If date_str is already a datetime.date or datetime.datetime object, format it directly
-            if isinstance(date_str, (datetime, datetime.date)):
-                return date_str.strftime('%B %d, %Y')
-
-            # Parse the input string to a datetime object if it's a string
+            # Attempt to parse and format the date with time
             date_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
-            return date_obj.strftime('%B %d, %Y')
+        except ValueError:
+            try:
+                # Fallback to parsing date without time
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            except ValueError:
+                # If parsing fails, return the original date string
+                return date_str
 
-        except (ValueError, TypeError):
-            # Return the original string if formatting fails or if it's not a string/datetime
-            return date_str
+        # Return the formatted date
+        return date_obj.strftime('%b %d, %Y')
 
     def load_categories_and_tags(self):
         """Load categories and tags from YAML files."""
@@ -192,24 +196,25 @@ class Stattic:
                 filepath = os.path.join(self.pages_dir, page_file)
                 metadata, _ = self.parse_markdown_with_metadata(filepath)
 
-                # Fix title extraction if it's a dictionary with 'rendered'
                 title = metadata.get('title', 'Untitled')
                 if isinstance(title, dict):
                     title = title.get('rendered', 'Untitled')
 
-                # Get the order from frontmatter or default to a high number for unordered pages
                 order = metadata.get('order', 100)
+                
+                # Convert nav_hide to lowercase and treat as a string
+                nav_hide = str(metadata.get('nav_hide', '')).strip().lower()
 
                 # Add page metadata to self.pages
                 self.pages.append({
                     'title': title,
                     'permalink': f"/{metadata.get('custom_url', page_file.replace('.md', ''))}/",
-                    'order': order
+                    'order': order,
+                    'nav_text': metadata.get('nav_text'),
+                    'nav_hide': nav_hide  # Store it consistently as lowercase
                 })
 
-            # Sort pages by the order field
             self.pages = sorted(self.pages, key=lambda x: x['order'])
-
             self.logger.info(f"Loaded {len(self.pages)} pages for navigation")
 
         except Exception as e:
@@ -218,6 +223,11 @@ class Stattic:
     def download_image(self, url, output_dir, markdown_file_path=None):
         """Download an image and save it locally, or check if it's a local image."""
         try:
+            # Only process URLs with common image file extensions
+            if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
+                self.logger.warning(f"Skipping non-image URL: {url}")
+                return None
+
             # Check if the URL is relative (starts with a slash or '..' indicating local reference)
             if url.startswith('/') or url.startswith('../') or not url.startswith('http'):
                 # If markdown_file_path is provided, resolve the local path relative to it
@@ -380,11 +390,32 @@ class Stattic:
             return None
 
     def process_images(self, content):
-        """Find all image URLs in the content, download, and convert them."""
-        image_urls = re.findall(r'!\[.*?\]\((.*?)\)', content)  # Extract image URLs from markdown
+        """Find all image URLs in the content, download, convert them, and replace with local WebP paths."""
+        # Extract image URLs from Markdown syntax
+        markdown_image_urls = re.findall(r'!\[.*?\]\((.*?)\)', content)
+        
+        # Extract image URLs from HTML <img> tags, including src, srcset, and wrapped links
+        html_image_urls = re.findall(r'<img\s+[^>]*src="([^"]+)"', content)
+        href_urls = re.findall(r'<a\s+[^>]*href="([^"]+)"', content)
+        
+        # Extract srcset image URLs, multiple URLs per srcset
+        srcset_urls = re.findall(r'srcset="([^"]+)"', content)
+        all_srcset_urls = []
+        for srcset in srcset_urls:
+            all_srcset_urls.extend([url.strip().split(' ')[0] for url in srcset.split(',')])
+        
+        # Combine all unique image URLs
+        image_urls = set(markdown_image_urls + html_image_urls + href_urls + all_srcset_urls)
+        
         local_image_paths = {}
-
+        
+        # Process all unique image URLs found
         for url in image_urls:
+            # Ensure the URL points to an image file
+            if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
+                self.logger.warning(f"Skipping non-image URL: {url}")
+                continue
+
             self.logger.info(f"Processing image: {url}")
             image_name = os.path.basename(url)
             webp_image_path = os.path.join(self.images_dir, image_name.rsplit('.', 1)[0] + '.webp')
@@ -401,9 +432,31 @@ class Stattic:
                     if webp_path:
                         local_image_paths[url] = os.path.join('/images', os.path.basename(webp_path))
 
-        # Replace external URLs with local WebP paths in the content
+        # Replace `href` and `src` attributes directly
         for url, webp_path in local_image_paths.items():
-            content = content.replace(url, webp_path)
+            content = content.replace(f'href="{url}"', f'href="{webp_path}"')
+            content = content.replace(f'src="{url}"', f'src="{webp_path}"')
+
+        # Replace `srcset` attributes with all processed image URLs
+        def replace_srcset(match):
+            srcset_value = match.group(1)
+            srcset_entries = srcset_value.split(',')
+
+            # Prepare to replace each URL in the srcset
+            new_srcset_entries = []
+            for entry in srcset_entries:
+                parts = entry.strip().split(' ')
+                url_part = parts[0]
+                # Check if the URL was processed and exists in local_image_paths
+                if url_part in local_image_paths:
+                    parts[0] = local_image_paths[url_part]
+                new_srcset_entries.append(' '.join(parts))
+
+            # Reconstruct the srcset attribute with all updated URLs
+            return 'srcset="' + ', '.join(new_srcset_entries) + '"'
+
+        # Use regex to find srcset attributes and replace them using the function
+        content = re.sub(r'srcset="([^"]+)"', replace_srcset, content)
 
         return content
 
@@ -467,7 +520,7 @@ class Stattic:
             author_name = self.get_author_name(metadata.get('author', 'Unknown'))
 
             # Format the date using the format_date helper function
-            formatted_date = self.format_date(metadata.get('date', ''))
+            formatted_date = self.format_date(metadata.get('date'))
 
             post_categories = []
             for cat_id in metadata.get('categories', []):
@@ -577,7 +630,7 @@ class Stattic:
                 'title': metadata.get('title', 'Untitled'),
                 'excerpt': self.markdown_filter(metadata.get('excerpt', self.generate_excerpt(md_content))),
                 'permalink': f"/blog/{post_slug}/",
-                'date': metadata.get('date', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                'date': self.format_date(metadata.get('date'))
             }
             self.posts.append(post_metadata)
 
@@ -613,26 +666,25 @@ class Stattic:
     def build_index_page(self):
         """Render and build the index (homepage) with the list of posts."""
         try:
-            # Helper function to convert all date objects to datetime for consistent comparison
-            def get_post_date(post):
-                post_date = post.get('date', None)
-                if post_date:
-                    # If post_date is a date object (without time), convert it to datetime
-                    if isinstance(post_date, date) and not isinstance(post_date, datetime):
-                        return datetime.combine(post_date, datetime.min.time())  # Add time component to date
-                    # If it's already a datetime, return as is
-                    elif isinstance(post_date, datetime):
-                        return post_date
-                    # If it's a string, attempt to parse it
-                    elif isinstance(post_date, str):
-                        try:
-                            return datetime.strptime(post_date, "%Y-%m-%dT%H:%M:%S")
-                        except ValueError:
-                            self.logger.warning(f"Invalid date format in post: {post['title']} - using default date.")
-                            return datetime.min  # Return a minimal date if parsing fails
-                return datetime.min  # Use a minimal date if date is missing
+            def parse_date(date_str):
+                """Try parsing the date with different possible formats."""
+                for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%d', '%b %d, %Y']:
+                    try:
+                        return datetime.strptime(date_str, fmt)
+                    except ValueError:
+                        continue
+                self.logger.warning(f"Invalid date format: '{date_str}', defaulting to minimum datetime")
+                return datetime.min  # Default to minimum datetime if no formats match
 
-            # Ensure that all dates are converted before sorting
+            def get_post_date(post):
+                date_str = post.get('date', '')
+                if isinstance(date_str, datetime):
+                    return date_str
+                elif isinstance(date_str, str):
+                    return parse_date(date_str)
+                return datetime.min  # Default to minimum datetime if date is missing or invalid
+
+            # Sort posts by date in descending order
             posts_for_index = sorted(self.posts, key=get_post_date, reverse=True)[:self.posts_per_page]
 
             # Render the index.html template with the list of posts and pages for the menu
@@ -715,7 +767,7 @@ class Stattic:
                         # Fallback to the current date if parsing fails
                         post_pubdate = datetime.now().strftime('%a, %d %b %Y %H:%M:%S +0000')
                 except ValueError:
-                    post_pubdate = datetime.strptime(post_date_str, '%Y-%m-%d %H:%M:%S').strftime('%a, %d %b %Y %H:%M:%S +0000')
+                    post_pubdate = self.format_date(post.get('date'))
 
                 # Generate a unique guid for each post (could be permalink-based hash)
                 guid = md5(post_permalink.encode('utf-8')).hexdigest()
@@ -766,13 +818,20 @@ class Stattic:
             for post in self.posts:
                 post_permalink = f"{site_url.rstrip('/')}/{post.get('permalink', '').lstrip('/')}"
                 post_date_str = post.get('date', datetime.now())
-                
-                # Ensure post_date is a datetime object
+
+                # Try multiple formats for the post date
                 if isinstance(post_date_str, str):
-                    try:
-                        post_date = datetime.strptime(post_date_str, '%Y-%m-%d %H:%M:%S')
-                    except ValueError:
-                        post_date = datetime.strptime(post_date_str, '%Y-%m-%dT%H:%M:%S')
+                    date_formats = ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%d', '%b %d, %Y']
+                    post_date = None
+                    for fmt in date_formats:
+                        try:
+                            post_date = datetime.strptime(post_date_str, fmt)
+                            break
+                        except ValueError:
+                            continue
+                    if post_date is None:
+                        self.logger.error(f"Date '{post_date_str}' could not be parsed with any known format. Using current date.")
+                        post_date = datetime.now()
                 elif isinstance(post_date_str, datetime):
                     post_date = post_date_str
                 else:
@@ -788,9 +847,9 @@ class Stattic:
 
             # Generate the full XML sitemap content
             sitemap_xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-        {''.join(sitemap_entries)}
-    </urlset>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            {''.join(sitemap_entries)}
+        </urlset>
             """
 
             # Write the XML sitemap to output/sitemap.xml
@@ -807,22 +866,35 @@ class Stattic:
         """Format a URL entry for the XML sitemap."""
         escaped_url = escape(url)
         
-        # Ensure lastmod is a datetime and format it accordingly
+        # If lastmod is already a datetime, convert to the desired format
         if isinstance(lastmod, datetime):
-            lastmod = lastmod.strftime('%Y-%m-%dT%H:%M:%SZ')
+            lastmod_str = lastmod.strftime('%Y-%m-%dT%H:%M:%SZ')
         elif isinstance(lastmod, str):
-            try:
-                # Attempt to parse the string to a datetime object
-                lastmod = datetime.strptime(lastmod, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%dT%H:%M:%SZ')
-            except ValueError:
-                lastmod = datetime.strptime(lastmod, '%Y-%m-%dT%H:%M:%S').strftime('%Y-%m-%dT%H:%M:%SZ')
+            # Attempt each format until one is successful
+            date_formats = ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%d', '%b %d, %Y']
+            lastmod_str = None
+            for fmt in date_formats:
+                try:
+                    lastmod_dt = datetime.strptime(lastmod, fmt)
+                    lastmod_str = lastmod_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+                    self.logger.info(f"Successfully parsed date '{lastmod}' with format '{fmt}'")
+                    break
+                except ValueError as e:
+                    self.logger.debug(f"Failed to parse date '{lastmod}' with format '{fmt}': {e}")
+            
+            # If no format matches, log the fallback
+            if lastmod_str is None:
+                self.logger.error(f"Date '{lastmod}' could not be parsed with any known format. Using current date instead.")
+                lastmod_str = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
+        else:
+            lastmod_str = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
 
         return f'''
-    <url>
-        <loc>{escaped_url}</loc>
-        <lastmod>{escape(lastmod)}</lastmod>
-    </url>
-    '''
+        <url>
+            <loc>{escaped_url}</loc>
+            <lastmod>{lastmod_str}</lastmod>
+        </url>
+        '''
 
     def build_404_page(self):
         """Build and generate the 404 error page for GitHub Pages."""
