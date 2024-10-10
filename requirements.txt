@@ -7,3 +7,4 @@ Pillow==10.3.0
 tqdm==4.64.0
 csscompressor==0.9.5
 rjsmin==1.2.0
+mistune==2.0.3
