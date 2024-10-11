@@ -1,15 +1,16 @@
 {% extends "base.html" %}
 
 {% block content %}
-
-<ul class="space-y-6">
-    {% for post in posts %}
-    <li>
-        <h2 class="text-4xl font-bold quicksand-700">
-            <a href="{{ post.permalink }}" class="text-links hover:underline">{{ post.title }}</a>
-        </h2>
-        <div class="dark:text-gray-400">{{ post.excerpt | safe }}</div>
-    </li>
-    {% endfor %}
-</ul>
+<main class="container max-w-2xl m-auto py-10 px-4" id="main-content">
+    <ul class="space-y-6">
+        {% for post in posts %}
+        <li>
+            <h2 class="text-4xl font-bold quicksand-700">
+                <a href="{{ post.permalink }}" class="text-links hover:underline">{{ post.title }}</a>
+            </h2>
+            <div class="dark:text-gray-400">{{ post.excerpt | safe }}</div>
+        </li>
+        {% endfor %}
+    </ul>
+</main><!-- #main-content -->
 {% endblock %}

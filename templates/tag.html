@@ -1,16 +1,17 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1 class="text-3xl font-bold mb-4 quicksand-700">Posts tagged with "{{ tag }}"</h1>
-
-<ul class="space-y-6">
-    {% for post in posts %}
-    <li>
-        <h3 class="text-4xl font-bold quicksand-700">
-            <a href="{{ post.permalink }}" class="text-links hover:underline">{{ post.title }}</a>
-        </h3>
-        <p class=" dark:text-gray-400">{{ post.excerpt | markdown }}</p>
-    </li>
-    {% endfor %}
-</ul>
+<main class="container max-w-2xl m-auto py-10 px-4" id="main-content">
+    <h1 class="text-3xl font-bold mb-4 quicksand-700">Posts tagged with "{{ tag }}"</h1>
+    <ul class="space-y-6">
+        {% for post in posts %}
+        <li>
+            <h3 class="text-4xl font-bold quicksand-700">
+                <a href="{{ post.permalink }}" class="text-links hover:underline">{{ post.title }}</a>
+            </h3>
+            <p class=" dark:text-gray-400">{{ post.excerpt | markdown }}</p>
+        </li>
+        {% endfor %}
+    </ul>
+</main>
 {% endblock %}

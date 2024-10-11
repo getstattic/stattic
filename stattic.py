@@ -61,19 +61,28 @@ class Stattic:
         self.env.filters['markdown'] = self.markdown_filter
 
     def markdown_filter(self, text):
-        """Convert markdown text to HTML using Mistune 2.x."""
+        """Convert markdown text to HTML using Mistune 2.x with preserved line breaks in code blocks."""
         start_time = time.time()
 
-        # Initialize Mistune with the necessary plugins including tables and task lists
-        markdown = mistune.create_markdown(renderer=mistune.HTMLRenderer(), plugins=['table', 'task_lists', 'strikethrough'])
+        # Custom renderer to preserve line breaks in code blocks
+        class CustomRenderer(mistune.HTMLRenderer):
+            def block_code(self, code, info=None):
+                # Ensure line breaks and spacing are preserved within <pre><code>
+                escaped_code = mistune.escape(code)
+                return '<pre style="white-space: pre-wrap;"><code>{}</code></pre>'.format(escaped_code)
 
-        # Convert the markdown text to HTML
+        # Initialize Mistune with custom renderer and necessary plugins
+        markdown = mistune.create_markdown(
+            renderer=CustomRenderer(),
+            plugins=['table', 'task_lists', 'strikethrough']
+        )
+
+        # Convert Markdown content to HTML
         html_output = markdown(text)
 
         end_time = time.time()
-
         # Log the HTML output for debugging purposes
-        self.logger.info(f"Converted Markdown to HTML using Mistune (Time taken: {end_time:.2f} seconds)")
+        self.logger.info(f"Converted Markdown to HTML using Mistune (Time taken: {end_time - start_time:.2f} seconds)")
 
         return html_output
 
@@ -146,16 +155,26 @@ class Stattic:
         if not date_str:
             return ''  # Return an empty string if no date is provided
 
-        try:
+        # Check if date_str is already a datetime object
+        if isinstance(date_str, datetime):
+            date_obj = date_str
+        elif isinstance(date_str, date):
+            # If it's a datetime.date object, convert it to datetime
+            date_obj = datetime(date_str.year, date_str.month, date_str.day)
+        elif isinstance(date_str, str):
             # Attempt to parse and format the date with time
-            date_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
-        except ValueError:
             try:
-                # Fallback to parsing date without time
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                date_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
             except ValueError:
-                # If parsing fails, return the original date string
-                return date_str
+                try:
+                    # Fallback to parsing date without time
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                except ValueError:
+                    # If parsing fails, return the original date string
+                    return date_str
+        else:
+            # If it's an unexpected type, return an empty string or handle accordingly
+            return ''
 
         # Return the formatted date
         return date_obj.strftime('%b %d, %Y')
