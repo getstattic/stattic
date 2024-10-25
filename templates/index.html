@@ -6,7 +6,8 @@
         {% for post in posts %}
         <li>
             <h2 class="text-4xl font-bold quicksand-700">
-                <a href="{{ post.permalink }}" class="text-links hover:underline">{{ post.title }}</a>
+                <!-- Updated href to point to index.html within the post directory -->
+                <a href="{{ relative_path }}{{ post.permalink }}index.html" class="text-links hover:underline">{{ post.title }}</a>
             </h2>
             <div class="dark:text-gray-400">{{ post.excerpt | safe }}</div>
         </li>

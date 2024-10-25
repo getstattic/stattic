@@ -9,16 +9,17 @@
     <meta name="keywords" content="{% if seo_keywords %}{{ seo_keywords }}{% else %}SSG, Static Site Generator{% endif %}">
     <meta name="author" content="{% if author %}{{ author }}{% else %}Robert DeVore{% endif %}">
 
-    <link href="/assets/css/tailwind.min.css" rel="stylesheet preload" as="style">
+    <!-- Use relative_path to correctly reference assets -->
+    <link href="{{ relative_path }}assets/css/tailwind.min.css" rel="stylesheet preload" as="style">
     {% if minify %}
-        <link href="/assets/css/main.min.css" rel="stylesheet preload" as="style">
+        <link href="{{ relative_path }}assets/css/main.min.css" rel="stylesheet preload" as="style">
     {% else %}
-        <link href="/assets/css/style.css" rel="stylesheet preload" as="style">
-        <link href="/assets/css/fonts.css" rel="stylesheet preload" as="style">
+        <link href="{{ relative_path }}assets/css/style.css" rel="stylesheet preload" as="style">
+        <link href="{{ relative_path }}assets/css/fonts.css" rel="stylesheet preload" as="style">
     {% endif %}
 
     <!-- Alpine.js for interactive components -->
-    <script src="/assets/js/alpine.min.js" defer></script>
+    <script src="{{ relative_path }}assets/js/alpine.min.js" defer></script>
 </head>
 <body class="bg-background text-primary quicksand-300">
 
@@ -29,15 +30,17 @@
 
 <header class="bg-background shadow" id="navigation">
     <div class="container max-w-screen-xl m-auto py-6 px-4 flex justify-between">
-        <h2 class="text-3xl font-bold quicksand-700"><a href="/" class="text-links">Stattic</a></h2>
-
-        <!-- Navigation Menu -->
+        <!-- Home link using relative_path -->
+        <h2 class="text-3xl font-bold quicksand-700"><a href="{{ relative_path }}index.html" class="text-links">Stattic</a></h2>
         <nav>
             <ul class="flex space-x-6">
                 {% for page in pages %}
-                    <li>
-                        <a href="{{ page.permalink }}" class="text-primary hover:underline quicksand-700">{{ page.title }}</a>
-                    </li>
+                    {% if page.nav_hide != 'true' %}
+                        <li>
+                            <!-- Internal links using relative_path and permalink -->
+                            <a href="{{ relative_path }}{{ page.permalink.strip('/') }}/index.html" class="text-primary hover:underline quicksand-700">{{ page.title }}</a>
+                        </li>
+                    {% endif %}
                 {% endfor %}
             </ul>
         </nav>

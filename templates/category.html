@@ -7,7 +7,7 @@
         {% for post in posts %}
         <li>
             <h3 class="text-4xl font-bold quicksand-700">
-                <a href="{{ post.permalink }}" class="text-links hover:underline">{{ post.title }}</a>
+                <a href="{{ relative_path }}{{ post.permalink }}index.html" class="text-links hover:underline">{{ post.title }}</a>
             </h3>
             <p class=" dark:text-gray-400">{{ post.excerpt | markdown }}</p>
         </li>
