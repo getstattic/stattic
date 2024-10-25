@@ -22,7 +22,7 @@ import xml.etree.ElementTree as ET
 GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap'
 
 class Stattic:
-    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None):
+    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None, site_url=None):
         self.content_dir = content_dir
         self.posts_dir = os.path.join(content_dir, 'posts')
         self.pages_dir = os.path.join(content_dir, 'pages')
@@ -43,6 +43,7 @@ class Stattic:
         self.tags = {}
         self.authors = {}  # Store author mappings
         self.image_conversion_count = 0  # Track total number of converted images
+        self.site_url = site_url.rstrip('/') if site_url else None  # Ensure no trailing slash
 
         # Setup logging (now logs are stored in the /logs/ folder)
         log_file = self.setup_logging()
@@ -72,13 +73,13 @@ class Stattic:
                 return '<pre style="white-space: pre-wrap;"><code>{}</code></pre>'.format(escaped_code)
 
         # Initialize Mistune with custom renderer and necessary plugins
-        markdown = mistune.create_markdown(
+        markdown_parser = mistune.create_markdown(
             renderer=CustomRenderer(),
             plugins=['table', 'task_lists', 'strikethrough']
         )
 
         # Convert Markdown content to HTML
-        html_output = markdown(text)
+        html_output = markdown_parser(text)
 
         end_time = time.time()
         # Log the HTML output for debugging purposes
@@ -183,9 +184,9 @@ class Stattic:
         """Load categories and tags from YAML files."""
         try:
             with open(os.path.join(self.content_dir, 'categories.yml'), 'r') as cat_file:
-                self.categories = yaml.safe_load(cat_file)
+                self.categories = yaml.safe_load(cat_file) or {}
             with open(os.path.join(self.content_dir, 'tags.yml'), 'r') as tag_file:
-                self.tags = yaml.safe_load(tag_file)
+                self.tags = yaml.safe_load(tag_file) or {}
             self.logger.info(f"Loaded {len(self.categories)} categories and {len(self.tags)} tags")
         except FileNotFoundError as e:
             self.logger.error(f"YAML file not found: {e}")
@@ -196,7 +197,7 @@ class Stattic:
         """Load authors from a YAML file."""
         try:
             with open(os.path.join(self.content_dir, 'authors.yml'), 'r') as authors_file:
-                self.authors = yaml.safe_load(authors_file)
+                self.authors = yaml.safe_load(authors_file) or {}
             self.logger.info(f"Loaded {len(self.authors)} authors")
         except FileNotFoundError as e:
             self.logger.error(f"Authors YAML file not found: {e}")
@@ -227,12 +228,13 @@ class Stattic:
                 # Add page metadata to self.pages
                 self.pages.append({
                     'title': title,
-                    'permalink': f"/{metadata.get('custom_url', page_file.replace('.md', ''))}/",
+                    'permalink': f"{metadata.get('custom_url', page_file.replace('.md', ''))}/",  # Added trailing slash
                     'order': order,
                     'nav_text': metadata.get('nav_text'),
-                    'nav_hide': nav_hide  # Store it consistently as lowercase
+                    'nav_hide': nav_hide
                 })
 
+            # Sort pages by order
             self.pages = sorted(self.pages, key=lambda x: x['order'])
             self.logger.info(f"Loaded {len(self.pages)} pages for navigation")
 
@@ -244,7 +246,7 @@ class Stattic:
         try:
             # Only process URLs with common image file extensions
             if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
-                self.logger.warning(f"Skipping non-image URL: {url}")
+                #self.logger.warning(f"Skipping non-image URL: {url}")
                 return None
 
             # Check if the URL is relative (starts with a slash or '..' indicating local reference)
@@ -296,7 +298,7 @@ class Stattic:
 
             # Create the fonts and CSS directories if they don't exist
             fonts_output_path = os.path.join(self.assets_output_dir, 'fonts')
-            fonts_css_path = os.path.join(self.assets_output_dir, 'css/fonts.css')
+            fonts_css_path = os.path.join(self.assets_output_dir, 'css', 'fonts.css')
             os.makedirs(fonts_output_path, exist_ok=True)
             os.makedirs(os.path.dirname(fonts_css_path), exist_ok=True)
 
@@ -315,7 +317,7 @@ class Stattic:
                     font_output_file_woff2 = os.path.join(fonts_output_path, font_file_name_woff2)
                     font_output_file_ttf = os.path.join(fonts_output_path, font_file_name_ttf)
 
-                    # Check if the font file already exists for both formats
+                    # Check if the font file already exists for woff2 format
                     if os.path.exists(font_output_file_woff2) and os.path.getsize(font_output_file_woff2) > 0:
                         self.logger.info(f"Font {font} ({weight}) already exists in woff2. Skipping download.")
                     else:
@@ -343,22 +345,22 @@ class Stattic:
 
                     # Generate @font-face rule with multiple formats (woff2, ttf)
                     css_content += f"""
-        @font-face {{
-        font-family: '{font.strip()}';  /* Common font family for all weights */
-        font-style: normal;
-        font-weight: {weight};
-        font-display: swap;
-        src: url('../fonts/{font_file_name_woff2}') format('woff2'), 
-            url('../fonts/{font_file_name_ttf}') format('truetype');
-        }}
-        """
+@font-face {{
+    font-family: '{font.strip()}';
+    font-style: normal;
+    font-weight: {weight};
+    font-display: swap;
+    src: url('../fonts/{font_file_name_woff2}') format('woff2'), 
+         url('../fonts/{font_file_name_ttf}') format('truetype');
+}}
+"""
 
                 # Apply the font-family globally (optional customization)
                 css_content += f"""
-        body {{
-            font-family: '{font.strip()}', sans-serif;  /* Apply downloaded font to body */
-        }}
-        """
+body {{
+    font-family: '{font.strip()}', sans-serif;
+}}
+"""
 
             # Write the @font-face rules to the fonts.css file
             with open(fonts_css_path, 'w') as f:
@@ -432,7 +434,7 @@ class Stattic:
         for url in image_urls:
             # Ensure the URL points to an image file
             if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
-                self.logger.warning(f"Skipping non-image URL: {url}")
+                #self.logger.warning(f"Skipping non-image URL: {url}")
                 continue
 
             self.logger.info(f"Processing image: {url}")
@@ -442,14 +444,14 @@ class Stattic:
             # Check if the WebP version already exists
             if os.path.exists(webp_image_path):
                 self.logger.info(f"Using existing WebP image: {webp_image_path}")
-                local_image_paths[url] = os.path.join('/images', os.path.basename(webp_image_path))
+                local_image_paths[url] = f"images/{os.path.basename(webp_image_path)}"
             else:
                 # Download and convert the image if the WebP version does not exist
                 image_path = self.download_image(url, self.images_dir)
                 if image_path:
                     webp_path = self.convert_image_to_webp(image_path)
                     if webp_path:
-                        local_image_paths[url] = os.path.join('/images', os.path.basename(webp_path))
+                        local_image_paths[url] = f"images/{os.path.basename(webp_path)}"
 
         # Replace `href` and `src` attributes directly
         for url, webp_path in local_image_paths.items():
@@ -524,6 +526,18 @@ class Stattic:
             self.logger.error(f"Directory not found: {directory}")
             raise
 
+    def calculate_relative_path(self, current_output_dir):
+        """Calculate the relative path from the current_output_dir to the root output directory."""
+        # Get the absolute paths
+        root = os.path.abspath(self.output_dir)
+        current = os.path.abspath(current_output_dir)
+
+        # Get the relative path
+        relative = os.path.relpath(root, current)
+
+        # If relative is '.', it means current_output_dir is root
+        return './' if relative == '.' else relative + '/'
+
     def build_post_or_page(self, metadata, html_content, post_slug, output_dir, is_page=False):
         """Render the post or page template and write it to the output directory."""
         try:
@@ -562,6 +576,9 @@ class Stattic:
                 else:
                     self.logger.error(f"Invalid tag ID: {tag_id}")
 
+            # Calculate relative_path based on directory depth
+            relative_path = self.calculate_relative_path(output_dir)
+
             # Get the template part from the frontmatter or fallback to 'post.html' or 'page.html'
             template_part = metadata.get('template', None)
 
@@ -585,7 +602,8 @@ class Stattic:
                 seo_description=metadata.get('description', ''),
                 lang=metadata.get('lang', 'en'),
                 pages=self.pages,  # Pass pages for consistent navigation
-                metadata=metadata
+                metadata=metadata,
+                relative_path=relative_path  # Pass relative_path to templates
             )
 
             # Write the rendered HTML to the output file
@@ -607,7 +625,7 @@ class Stattic:
         try:
             start_time = time.time()
             template = self.env.get_template(template_name)
-            context['minify'] = args.minify  # Pass the minify flag
+            context['minify'] = getattr(args, 'minify', False)  # Pass the minify flag
             rendered_template = template.render(context)
             duration = time.time() - start_time
             self.logger.info(f"Rendered template: {template_name} (Time taken: {duration:.2f} seconds)")
@@ -644,11 +662,15 @@ class Stattic:
             # Render the post and write it to the output directory
             self.build_post_or_page(metadata, html_content, post_slug, post_output_dir, is_page=False)
 
+            # Determine the permalink (relative path)
+            permalink = f"blog/{post_slug}/"
+
             # Collect post metadata for the index page
+            # When collecting post metadata
             post_metadata = {
                 'title': metadata.get('title', 'Untitled'),
                 'excerpt': self.markdown_filter(metadata.get('excerpt', self.generate_excerpt(md_content))),
-                'permalink': f"/blog/{post_slug}/",
+                'permalink': f"blog/{post_slug}/",
                 'date': self.format_date(metadata.get('date'))
             }
             self.posts.append(post_metadata)
@@ -673,7 +695,8 @@ class Stattic:
 
     def convert_markdown_to_html(self, markdown_content):
         """Convert Markdown content to HTML."""
-        return markdown.markdown(markdown_content)
+        # Use the custom markdown filter for consistent processing
+        return self.markdown_filter(markdown_content)
 
     def generate_excerpt(self, content):
         """Generate an excerpt from the post content if no excerpt is provided."""
@@ -723,7 +746,7 @@ class Stattic:
         # Example for a static contact page
         output_dir = os.path.join(self.output_dir, 'contact')
         os.makedirs(output_dir, exist_ok=True)
-        rendered_html = self.render_template('page.html', title="Contact Us", content="<p>Contact page content</p>")
+        rendered_html = self.render_template('page.html', title="Contact Us", content="<p>Contact page content</p>", relative_path='../')
         with open(os.path.join(output_dir, 'index.html'), 'w') as output_file:
             output_file.write(rendered_html)
         self.logger.info(f"Generated contact page: {output_dir}")
@@ -745,15 +768,16 @@ class Stattic:
 
             # RSS header information with proper escaping
             rss_feed = """<?xml version="1.0" encoding="UTF-8" ?>
-    <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
-    <channel>
-    <title>{site_name}</title>
-    <link>{site_url}</link>
-    <description>{site_description}</description>
-    <atom:link href="{feed_url}" rel="self" type="application/rss+xml" />
-    <lastBuildDate>{build_date}</lastBuildDate>
-    <language>en-us</language>
-    """
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<title>{site_name}</title>
+<link>{site_url}</link>
+<description>{site_description}</description>
+<atom:link href="{feed_url}" rel="self" type="application/rss+xml" />
+<lastBuildDate>{build_date}</lastBuildDate>
+<language>en-us</language>
+"""
+
             # Site description using site_name
             site_description = f"Latest posts from {escape(site_name)}"
             build_date = formatdate(timeval=None, localtime=False, usegmt=True)  # RFC-822 format
@@ -763,14 +787,14 @@ class Stattic:
                 site_name=escape(site_name),
                 site_url=escape(site_url),
                 site_description=site_description,
-                feed_url=escape(feed_url),  # Correctly set the feed URL
+                feed_url=escape(feed_url),
                 build_date=build_date
             )
 
             # Add each post to the RSS feed
             for post in self.posts:
                 post_title = escape(post.get('title', 'Untitled'))  # Escape special characters
-                post_permalink = f"{site_url.rstrip('/')}/{post.get('permalink', '').lstrip('/')}"  # Fixing URL formatting
+                post_permalink = f"{site_url.rstrip('/')}/{post.get('permalink', '')}"  # Absolute URL
 
                 # Strip the <p> tags from the excerpt and ensure plain text, escape it
                 post_description = escape(re.sub(r'<.*?>', '', post.get('excerpt', 'No description available')))
@@ -781,31 +805,37 @@ class Stattic:
                     if isinstance(post_date_str, datetime):
                         post_pubdate = post_date_str.strftime('%a, %d %b %Y %H:%M:%S +0000')
                     elif isinstance(post_date_str, str):
-                        post_pubdate = datetime.strptime(post_date_str, '%Y-%m-%dT%H:%M:%S').strftime('%a, %d %b %Y %H:%M:%S +0000')
+                        post_pubdate_dt = datetime.strptime(post_date_str, '%Y-%m-%dT%H:%M:%S')
+                        post_pubdate = post_pubdate_dt.strftime('%a, %d %b %Y %H:%M:%S +0000')
                     else:
                         # Fallback to the current date if parsing fails
                         post_pubdate = datetime.now().strftime('%a, %d %b %Y %H:%M:%S +0000')
                 except ValueError:
-                    post_pubdate = self.format_date(post.get('date'))
+                    # Attempt to parse date without time
+                    try:
+                        post_pubdate_dt = datetime.strptime(post_date_str, '%Y-%m-%d')
+                        post_pubdate = post_pubdate_dt.strftime('%a, %d %b %Y %H:%M:%S +0000')
+                    except (ValueError, TypeError):
+                        post_pubdate = datetime.now().strftime('%a, %d %b %Y %H:%M:%S +0000')
 
                 # Generate a unique guid for each post (could be permalink-based hash)
                 guid = md5(post_permalink.encode('utf-8')).hexdigest()
 
                 rss_feed += f"""
-    <item>
-    <title>{post_title} - {site_name}</title>
-    <link>{post_permalink}</link>
-    <description>{post_description}</description>
-    <guid isPermaLink="false">{guid}</guid>
-    <pubDate>{post_pubdate}</pubDate>
-    </item>
-    """
+<item>
+<title>{post_title} - {site_name}</title>
+<link>{post_permalink}</link>
+<description>{post_description}</description>
+<guid isPermaLink="false">{guid}</guid>
+<pubDate>{post_pubdate}</pubDate>
+</item>
+"""
 
             # Close the RSS channel
             rss_feed += """
-    </channel>
-    </rss>
-    """
+</channel>
+</rss>
+"""
 
             # Output RSS feed to /feed/index.xml
             rss_output_dir = os.path.join(self.output_dir, 'feed')
@@ -835,7 +865,7 @@ class Stattic:
 
             # Add URLs for posts
             for post in self.posts:
-                post_permalink = f"{site_url.rstrip('/')}/{post.get('permalink', '').lstrip('/')}"
+                post_permalink = f"{site_url.rstrip('/')}/{post.get('permalink', '')}"
                 post_date_str = post.get('date', datetime.now())
 
                 # Try multiple formats for the post date
@@ -860,17 +890,16 @@ class Stattic:
 
             # Add URLs for pages
             for page in self.pages:
-                page_permalink = f"{site_url.rstrip('/')}/{page.get('permalink', '').lstrip('/')}"
+                page_permalink = f"{site_url.rstrip('/')}/{page.get('permalink', '')}"
                 page_date = datetime.now()  # Adjust this as necessary for your requirements
                 sitemap_entries.append(self.format_xml_sitemap_entry(page_permalink, page_date))
 
             # Generate the full XML sitemap content
             sitemap_xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-            {''.join(sitemap_entries)}
-        </urlset>
-            """
-
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    {''.join(sitemap_entries)}
+</urlset>
+"""
             # Write the XML sitemap to output/sitemap.xml
             sitemap_output_file = os.path.join(self.output_dir, 'sitemap.xml')
             with open(sitemap_output_file, 'w', encoding='utf-8') as f:
@@ -909,11 +938,11 @@ class Stattic:
             lastmod_str = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
 
         return f'''
-        <url>
-            <loc>{escaped_url}</loc>
-            <lastmod>{lastmod_str}</lastmod>
-        </url>
-        '''
+    <url>
+        <loc>{escaped_url}</loc>
+        <lastmod>{lastmod_str}</lastmod>
+    </url>
+    '''
 
     def build_404_page(self):
         """Build and generate the 404 error page for GitHub Pages."""
@@ -922,8 +951,8 @@ class Stattic:
             output_file_path = os.path.join(self.output_dir, '404.html')
 
             # Render the 404 page using the 404 template
-            rendered_html = self.render_template('404.html', title="Page Not Found", content="<p>The page you are looking for does not exist.</p>")
-            
+            rendered_html = self.render_template('404.html', title="Page Not Found", content="<p>The page you are looking for does not exist.</p>", relative_path='./')
+
             # Write the rendered 404 HTML to the root directory
             with open(output_file_path, 'w') as output_file:
                 output_file.write(rendered_html)
@@ -951,7 +980,7 @@ class Stattic:
         self.build_404_page()
 
         # Minify assets if --minify is enabled
-        if args.minify:
+        if getattr(args, 'minify', False):
             self.minify_assets()
 
         build_end_time = time.time()
@@ -973,21 +1002,32 @@ if __name__ == "__main__":
     parser.add_argument('--posts-per-page', type=int, default=5, help='Number of posts per index page')
     parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author'], default='date', help='Sort posts by date, title, or author')
     parser.add_argument('--fonts', type=str, help='Comma-separated list of Google Fonts to download')
-    parser.add_argument('--site-url', type=str, required=True, help='Specify the site URL')
+    parser.add_argument('--site-url', type=str, help='Specify the site URL for production builds')
     parser.add_argument('--watch', action='store_true', help='Enable watch mode to automatically rebuild on file changes')
     parser.add_argument('--minify', action='store_true', help='Minify CSS and JS into single files')
 
     args = parser.parse_args()
 
     # Resolve the output directory path
-    output_dir = os.path.expanduser(args.output)
+    output_dir = resolve_output_path(args.output)
 
     # Parse fonts
     fonts = [font.strip() for font in args.fonts.split(',')] if args.fonts else None
 
-    # Create a generator with the specified output directory, posts per page, sorting method, and fonts
-    generator = Stattic(output_dir=output_dir, posts_per_page=args.posts_per_page, sort_by=args.sort_by, fonts=fonts)
+    # Create a generator with the specified output directory, posts per page, sorting method, fonts, and site_url
+    generator = Stattic(
+        output_dir=output_dir,
+        posts_per_page=args.posts_per_page,
+        sort_by=args.sort_by,
+        fonts=fonts,
+        site_url=args.site_url
+    )
 
     generator.build()
-    generator.generate_rss_feed(args.site_url)
-    generator.generate_xml_sitemap(args.site_url)
+
+    # Generate RSS and sitemap only if site_url is provided (production mode)
+    if generator.site_url:
+        generator.generate_rss_feed(generator.site_url)
+        generator.generate_xml_sitemap(generator.site_url)
+    else:
+        generator.logger.info("Skipping RSS feed and XML sitemap generation (not in production mode).")
