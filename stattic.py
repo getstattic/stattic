@@ -28,6 +28,7 @@ class Stattic:
         self.pages_dir = os.path.join(content_dir, 'pages')
         self.templates_dir = templates_dir
         self.output_dir = output_dir
+        self.logger = self.setup_logging()
         self.images_dir = os.path.join(output_dir, 'images')  # Images directory for downloads
         self.assets_src_dir = os.path.join(os.path.dirname(__file__), 'assets')  # Local assets folder
         self.assets_output_dir = os.path.join(output_dir, 'assets')  # Output folder for assets
@@ -44,9 +45,18 @@ class Stattic:
         self.authors = {}  # Store author mappings
         self.image_conversion_count = 0  # Track total number of converted images
         self.site_url = site_url.rstrip('/') if site_url else None  # Ensure no trailing slash
+        self.log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')  # Store the log file path
 
-        # Setup logging (now logs are stored in the /logs/ folder)
-        log_file = self.setup_logging()
+        # Validate templates directory
+        if not os.path.isdir(self.templates_dir):
+            raise FileNotFoundError(f"Templates directory '{self.templates_dir}' does not exist.")
+        
+        # Setup Jinja2 environment
+        self.env = Environment(loader=FileSystemLoader(self.templates_dir))
+        self.logger = self.setup_logging()
+
+        # Log resolved paths
+        self.logger.info(f"Using templates directory: {self.templates_dir}")
 
         # Load categories, tags, and authors from YAML files
         self.load_categories_and_tags()
@@ -110,10 +120,9 @@ class Stattic:
         logger.addHandler(fh)
         logger.addHandler(ch)
 
-        self.logger = logger
-        self.logger.info(f"Logging initialized. Logs stored at {log_file}")
+        logger.info(f"Logging initialized. Logs stored at {log_file}")
 
-        return log_file
+        return logger
 
     def minify_assets(self):
         """Minify all CSS and JS files into single files."""
@@ -602,6 +611,7 @@ body {{
                 seo_description=metadata.get('description', ''),
                 lang=metadata.get('lang', 'en'),
                 pages=self.pages,  # Pass pages for consistent navigation
+                page=metadata,  # Pass metadata as 'page' for template
                 metadata=metadata,
                 relative_path=relative_path  # Pass relative_path to templates
             )
@@ -1000,6 +1010,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Stattic - Static Site Generator')
     parser.add_argument('--output', type=str, default='output', help='Specify the output directory')
     parser.add_argument('--content', type=str, default='content', help='Specify the content directory')
+    parser.add_argument('--templates', type=str, help='Specify the templates directory (default: templates/)')
     parser.add_argument('--posts-per-page', type=int, default=5, help='Number of posts per index page')
     parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author'], default='date', help='Sort posts by date, title, or author')
     parser.add_argument('--fonts', type=str, help='Comma-separated list of Google Fonts to download')
@@ -1018,6 +1029,7 @@ if __name__ == "__main__":
     # Create a generator with the specified directories, output, and settings
     generator = Stattic(
         content_dir=args.content,
+        templates_dir=args.templates,
         output_dir=output_dir,
         posts_per_page=args.posts_per_page,
         sort_by=args.sort_by,
