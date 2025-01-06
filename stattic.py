@@ -132,8 +132,8 @@ class Stattic:
             js_dir = os.path.join(self.assets_output_dir, 'js')
 
             # Output paths for minified files
-            minified_css_path = os.path.join(css_dir, 'main.min.css')
-            minified_js_path = os.path.join(js_dir, 'main.min.js')
+            minified_css_path = os.path.join(css_dir, 'stattic.min.css')
+            minified_js_path = os.path.join(js_dir, 'stattic.min.js')
 
             # Minify CSS files
             all_css_content = ""
