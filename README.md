@@ -120,9 +120,9 @@ This command processes the content in the `content/` directory, applies the temp
 **Note:** The `--watch` feature is defined but not yet implemented in the current version of `stattic.py`.
 
 ### **Example: Building the Site with Custom Fonts and Minification**
-    ```
-    python3 stattic.py --output ~/Documents/demo --posts-per-page 10 --sort-by title --fonts "Quicksand, Roboto" --minify --site-url "https://demo.stattic.site"
-    ```    
+```
+python3 stattic.py --output ~/Documents/demo --posts-per-page 10 --sort-by title --fonts "Quicksand, Roboto" --site-url "https://demo.stattic.site" --minify
+```
 
 * * *
 
@@ -148,38 +148,38 @@ Each Markdown file should start with a YAML frontmatter block specifying metadat
 
 **Example: Blog Post (`content/posts/my-first-post.md`)**
 
-    ```
-    ---
-    title: "My First Blog Post"
-    date: 2024-09-25
-    tags: [Python, Static Sites]
-    categories: [Technology]
-    description: "An introduction to Stattic, a simple static site generator."
-    custom_url: "my-first-post"
-    author: 1
-    draft: false
-    ---
-    
-    # Welcome to Stattic!
-    
-    This is my first blog post using **Stattic**.
-    ```
+```
+---
+title: "My First Blog Post"
+date: 2024-09-25
+tags: [Python, Static Sites]
+categories: [Technology]
+description: "An introduction to Stattic, a simple static site generator."
+custom_url: "my-first-post"
+author: 1
+draft: false
+---
+
+# Welcome to Stattic!
+
+This is my first blog post using **Stattic**.
+```
 
 **Example: Static Page (`content/pages/about.md`)**
 
-    ```
-    ---
-    title: "About"
-    custom_url: "about"
-    description: "Learn more about Stattic and its features."
-    author: 1
-    nav_hide: false
-    ---
-    
-    # About Stattic
-    
-    Stattic is a lightweight static site generator...
-    ```
+```
+---
+title: "About"
+custom_url: "about"
+description: "Learn more about Stattic and its features."
+author: 1
+nav_hide: false
+---
+
+# About Stattic
+
+Stattic is a lightweight static site generator...
+```
 
 * * *
 
@@ -212,15 +212,15 @@ Enhance your site's SEO by adding metadata in the frontmatter of your Markdown f
 
 **Example:**
 
-    ```
-    ---
-    title: "SEO Optimization with Stattic"
-    description: "Learn how to optimize your static site for search engines."
-    keywords: [SEO, Static Site, Optimization]
-    custom_url: "seo-optimization"
-    author: 2
-    ---
-    ```
+```
+---
+title: "SEO Optimization with Stattic"
+description: "Learn how to optimize your static site for search engines."
+keywords: [SEO, Static Site, Optimization]
+custom_url: "seo-optimization"
+author: 2
+---
+```
 
 * * *
 
@@ -234,15 +234,15 @@ Stattic automatically handles image optimization by:
 
 **Example:**
 
-    ```    
-    ![Logo](https://example.com/images/logo.png)
-    ```
+```    
+![Logo](https://example.com/images/logo.png)
+```
 
 After processing, the above will be converted to:
 
-    ```
-    <img src="images/logo.webp" alt="Logo">
-    ```
+```
+<img src="images/logo.webp" alt="Logo">
+```
 
 * * *
 
@@ -252,9 +252,9 @@ Improve your site's performance by minifying CSS and JavaScript assets.
 
 - **Enable Minification**: Use the `--minify` flag when running `stattic.py`.
 
-    ```
-    python3 stattic.py --minify
-    ```
+```
+python3 stattic.py --minify
+```
 
 - **Minified Files**:
 
@@ -269,7 +269,6 @@ Improve your site's performance by minifying CSS and JavaScript assets.
 Generate an RSS feed and XML sitemap for your site by providing the `--site-url` argument.
 
 - **Generate RSS Feed and Sitemap**:
-
     ```
     python3 stattic.py --site-url "https://demo.stattic.site"
     ```
@@ -290,15 +289,15 @@ Stattic provides detailed logs of the build process, including performance metri
 
 **Example Log Entry:**
 
-    ```
-    2024-09-27 12:34:56 - INFO - Starting build process...
-    2024-09-27 12:34:56 - INFO - Created output directory: output
-    2024-09-27 12:34:57 - INFO - Loaded 3 categories and 5 tags
-    2024-09-27 12:34:57 - INFO - Converted Markdown to HTML using Mistune (Time taken: 0.45 seconds)
-    2024-09-27 12:34:58 - INFO - Generated post: output/blog/my-first-post/index.html
-    2024-09-27 12:34:59 - INFO - Generated index page: output/index.html
-    2024-09-27 12:34:59 - INFO - Site build completed successfully in 3.00 seconds.
-    ```
+```
+2024-09-27 12:34:56 - INFO - Starting build process...
+2024-09-27 12:34:56 - INFO - Created output directory: output
+2024-09-27 12:34:57 - INFO - Loaded 3 categories and 5 tags
+2024-09-27 12:34:57 - INFO - Converted Markdown to HTML using Mistune (Time taken: 0.45 seconds)
+2024-09-27 12:34:58 - INFO - Generated post: output/blog/my-first-post/index.html
+2024-09-27 12:34:59 - INFO - Generated index page: output/index.html
+2024-09-27 12:34:59 - INFO - Site build completed successfully in 3.00 seconds.
+```
 
 - **Console Output**: Also displays INFO level logs for real-time feedback.
 * * *
@@ -309,30 +308,30 @@ We welcome contributions! To contribute:
 
 1. **Fork the Repository:**
 
-    ```
-    git clone https://github.com/getstattic/stattic.git
-    cd stattic
-    ```
+```
+git clone https://github.com/getstattic/stattic.git
+cd stattic
+```
 
 2. **Create a New Branch:**
 
-    ```
-    git checkout -b feature-branch
-    ```
+```
+git checkout -b feature-branch
+```
 
 3. **Make Your Changes**: Implement your features or fixes.
 
 4. **Commit Your Changes:**
 
-    ```
-    git commit -m "Add feature XYZ"
-    ```
+```
+git commit -m "Add feature XYZ"
+```
 
 5. **Push to Your Fork:**
 
-    ```
-    git push origin feature-branch
-    ```
+```
+git push origin feature-branch
+```
 
 6. **Submit a Pull Request**: Open a pull request detailing your changes.
 
@@ -344,7 +343,7 @@ This project is licensed under the MIT License. See the [LICENSE](/LICENSE) file
 
 * * *
 
-## Additional Notes (10/25/2024)
+## Additional Notes (01/06/2025)
 
 1. **Watch Mode Implementation:**
 
