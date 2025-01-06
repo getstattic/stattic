@@ -83,12 +83,27 @@ This command processes the content in the `content/` directory, applies the temp
 - `--output`: Specify the output directory. Default is `output`.
     ```
     python3 stattic.py --output ~/Documents/demo
-    ```    
+    ```
+
+- `--content`: Specify the content directory. Default is `content`.
+    ```
+    python3 stattic.py --content ~/Documents/demo-content
+    ```
+
+- `--templates`: Specify the templates directory. Default is `templates`.
+    ```
+    python3 stattic.py --templates ~/Documents/demo-templates
+    ```
+
+- `--robots`: Specify if the robots.txt file is public or private. Default is `public`.
+    ```
+    python3 stattic.py --robots public
+    ```
 
 - `--posts-per-page`: Number of posts per index (homepage) page. Default is `5`.
     ```
     python3 stattic.py --posts-per-page 10
-    ```    
+    ```
 
 - `--sort-by`: Sort posts by `date`, `title`, or `author`. Default is `date`.
     ```
@@ -209,6 +224,7 @@ Enhance your site's SEO by adding metadata in the frontmatter of your Markdown f
 - **`keywords`**: Relevant keywords for the page or post.
 - **`author`**: The author ID as defined in `authors.yml`.
 - **`custom_url`**: Custom URL slug for the page or post.
+- **`canonical`**: The canonical URL for the page or post.
 
 **Example:**
 
@@ -218,6 +234,7 @@ title: "SEO Optimization with Stattic"
 description: "Learn how to optimize your static site for search engines."
 keywords: [SEO, Static Site, Optimization]
 custom_url: "seo-optimization"
+canonical: "https://yourdomain.com/custom-url"
 author: 2
 ---
 ```
