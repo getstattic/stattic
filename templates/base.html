@@ -15,6 +15,10 @@
     <link href="{{ relative_path }}assets/css/stattic.css" rel="stylesheet preload" as="style">
     <link href="{{ relative_path }}assets/css/fonts.css" rel="stylesheet preload" as="style">
     {% endif %}
+    <!-- Canonical URL -->
+    {% if canonical %}
+    <link rel="canonical" href="{{ canonical }}">
+    {% endif %}
     <!-- Alpine.js for interactive components -->
     <script src="{{ relative_path }}assets/js/alpine.min.js" defer></script>
 </head>
