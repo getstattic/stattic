@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "description": "Stattic is a simple yet powerful static site generator written in Python. It takes content written in Markdown and uses Jinja2 templates to generate static HTML pages. The generator supports blog posts, tag and category pages, static pages (like About or Contact), custom URLs, SEO metadata, and more.",
     "scripts": {
-        "build:css": "npx tailwindcss -i ./styles.css -o ./static/css/output.css --watch"
+        "build:css": "npx tailwindcss -i ./styles.css -o ./assets/css/output.css --watch"
     },
     "devDependencies": {
         "autoprefixer": "^10.3.7",
