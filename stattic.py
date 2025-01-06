@@ -22,7 +22,7 @@ import xml.etree.ElementTree as ET
 GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap'
 
 class Stattic:
-    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None, site_url=None):
+    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None, site_url=None, assets_dir=None):
         self.content_dir = content_dir
         self.posts_dir = os.path.join(content_dir, 'posts')
         self.pages_dir = os.path.join(content_dir, 'pages')
@@ -30,7 +30,7 @@ class Stattic:
         self.output_dir = output_dir
         self.logger = self.setup_logging()
         self.images_dir = os.path.join(output_dir, 'images')  # Images directory for downloads
-        self.assets_src_dir = os.path.join(os.path.dirname(__file__), 'assets')  # Local assets folder
+        self.assets_src_dir = assets_dir or os.path.join(os.path.dirname(__file__), 'assets')  # Custom or default assets folder
         self.assets_output_dir = os.path.join(output_dir, 'assets')  # Output folder for assets
         self.fonts = fonts if fonts else ['Quicksand']  # Default to Quicksand if no font is passed
         self.env = Environment(loader=FileSystemLoader(self.templates_dir))
@@ -50,10 +50,9 @@ class Stattic:
         # Validate templates directory
         if not os.path.isdir(self.templates_dir):
             raise FileNotFoundError(f"Templates directory '{self.templates_dir}' does not exist.")
-        
+
         # Setup Jinja2 environment
         self.env = Environment(loader=FileSystemLoader(self.templates_dir))
-        self.logger = self.setup_logging()
 
         # Log resolved paths
         self.logger.info(f"Using templates directory: {self.templates_dir}")
@@ -380,12 +379,12 @@ body {{
             self.logger.error(f"Failed to download fonts: {e}")
 
     def copy_assets_to_output(self):
-        """Copy the local assets folder (CSS, JS, etc.) to the output directory."""
+        """Copy the local or user-specified assets folder (CSS, JS, etc.) to the output directory."""
         try:
             if os.path.exists(self.assets_src_dir):
-                # Copy the entire assets directory to the output directory
+                # Copy the specified or default assets directory to the output directory
                 shutil.copytree(self.assets_src_dir, self.assets_output_dir, dirs_exist_ok=True)
-                self.logger.info(f"Copied assets to {self.assets_output_dir}")
+                self.logger.info(f"Copied assets from {self.assets_src_dir} to {self.assets_output_dir}")
             else:
                 self.logger.error(f"Assets directory not found: {self.assets_src_dir}")
         except Exception as e:
@@ -684,6 +683,8 @@ body {{
                 'date': self.format_date(metadata.get('date'))
             }
             self.posts.append(post_metadata)
+            
+            self.logger.info(f"Collected {len(self.posts)} posts for the index page.")
 
         # Process pages (save in root directory)
         page_files = self.get_markdown_files(self.pages_dir)
@@ -718,36 +719,28 @@ body {{
     def build_index_page(self):
         """Render and build the index (homepage) with the list of posts."""
         try:
-            def parse_date(date_str):
-                """Try parsing the date with different possible formats."""
-                for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%d', '%b %d, %Y']:
-                    try:
-                        return datetime.strptime(date_str, fmt)
-                    except ValueError:
-                        continue
-                self.logger.warning(f"Invalid date format: '{date_str}', defaulting to minimum datetime")
-                return datetime.min  # Default to minimum datetime if no formats match
+            # Sort posts by date in descending order and take the most recent ones
+            posts_for_index = sorted(
+                self.posts,
+                key=lambda post: self.format_date(post.get('date', '')),
+                reverse=True
+            )[:self.posts_per_page]
 
-            def get_post_date(post):
-                date_str = post.get('date', '')
-                if isinstance(date_str, datetime):
-                    return date_str
-                elif isinstance(date_str, str):
-                    return parse_date(date_str)
-                return datetime.min  # Default to minimum datetime if date is missing or invalid
+            # Render the index template
+            rendered_html = self.render_template(
+                'index.html',
+                posts=posts_for_index,
+                pages=self.pages,
+                page={}  # Provide an empty page context
+            )
 
-            # Sort posts by date in descending order
-            posts_for_index = sorted(self.posts, key=get_post_date, reverse=True)[:self.posts_per_page]
-
-            # Render the index.html template with the list of posts and pages for the menu
-            rendered_html = self.render_template('index.html', posts=posts_for_index, pages=self.pages)
-
-            # Save the generated index page
+            # Save the rendered HTML to the output directory
             output_file_path = os.path.join(self.output_dir, 'index.html')
             with open(output_file_path, 'w') as output_file:
                 output_file.write(rendered_html)
 
-            self.logger.info(f"Generated index page: {output_file_path}")
+            self.logger.info(f"Generated index page at {output_file_path}")
+
         except Exception as e:
             self.logger.error(f"Failed to generate index page: {e}")
 
@@ -992,7 +985,13 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
             output_file_path = os.path.join(self.output_dir, '404.html')
 
             # Render the 404 page using the 404 template
-            rendered_html = self.render_template('404.html', title="Page Not Found", content="<p>The page you are looking for does not exist.</p>", relative_path='./')
+            rendered_html = self.render_template(
+                '404.html',
+                title="Page Not Found",
+                content="<p>The page you are looking for does not exist.</p>",
+                relative_path='./',
+                page={}  # Provide an empty page context
+            )
 
             # Write the rendered 404 HTML to the root directory
             with open(output_file_path, 'w') as output_file:
@@ -1045,18 +1044,25 @@ if __name__ == "__main__":
     parser.add_argument('--output', type=str, default='output', help='Specify the output directory')
     parser.add_argument('--content', type=str, default='content', help='Specify the content directory')
     parser.add_argument('--templates', type=str, help='Specify the templates directory (default: templates/)')
+    parser.add_argument('--assets', type=str, help='Specify a custom assets directory to include in the build')
     parser.add_argument('--posts-per-page', type=int, default=5, help='Number of posts per index page')
     parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author'], default='date', help='Sort posts by date, title, or author')
     parser.add_argument('--fonts', type=str, help='Comma-separated list of Google Fonts to download')
     parser.add_argument('--site-url', type=str, help='Specify the site URL for production builds')
+    parser.add_argument('--robots', type=str, choices=['public', 'private'], default='public', help="Generate a public or private robots.txt file (default: public)")
     parser.add_argument('--watch', action='store_true', help='Enable watch mode to automatically rebuild on file changes')
     parser.add_argument('--minify', action='store_true', help='Minify CSS and JS into single files')
-    parser.add_argument('--robots',type=str,choices=['public', 'private'],default='public',help="Generate a public or private robots.txt file (default: public)")
 
     args = parser.parse_args()
 
     # Resolve the output directory path
     output_dir = resolve_output_path(args.output)
+
+    # Use the provided templates directory or default to 'templates/'
+    templates_dir = args.templates if args.templates else os.path.join(os.path.dirname(__file__), 'templates')
+
+    # Use the provided assets directory if specified
+    assets_dir = args.assets
 
     # Parse fonts
     fonts = [font.strip() for font in args.fonts.split(',')] if args.fonts else None
@@ -1064,12 +1070,13 @@ if __name__ == "__main__":
     # Create a generator with the specified directories, output, and settings
     generator = Stattic(
         content_dir=args.content,
-        templates_dir=args.templates,
+        templates_dir=templates_dir,
         output_dir=output_dir,
         posts_per_page=args.posts_per_page,
         sort_by=args.sort_by,
         fonts=fonts,
-        site_url=args.site_url
+        site_url=args.site_url,
+        assets_dir=assets_dir
     )
 
     generator.build()
