@@ -4,20 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% if title %}{{ title }} | {% endif %}Stattic</title>
-
     <meta name="description" content="{% if seo_description %}{{ seo_description }}{% else %}Stattic is a fast, lightweight static site generator that optimizes images, supports custom fonts, and easily integrates with GitHub Pages for quick, SEO-friendly site deployment without the bloat of traditional CMS platforms like WordPress.{% endif %}">
     <meta name="keywords" content="{% if seo_keywords %}{{ seo_keywords }}{% else %}SSG, Static Site Generator{% endif %}">
     <meta name="author" content="{% if author %}{{ author }}{% else %}Robert DeVore{% endif %}">
-
     <!-- Use relative_path to correctly reference assets -->
     <link href="{{ relative_path }}assets/css/tailwind.min.css" rel="stylesheet preload" as="style">
     {% if minify %}
-        <link href="{{ relative_path }}assets/css/main.min.css" rel="stylesheet preload" as="style">
+    <link href="{{ relative_path }}assets/css/main.min.css" rel="stylesheet preload" as="style">
     {% else %}
-        <link href="{{ relative_path }}assets/css/style.css" rel="stylesheet preload" as="style">
-        <link href="{{ relative_path }}assets/css/fonts.css" rel="stylesheet preload" as="style">
+    <link href="{{ relative_path }}assets/css/stattic.css" rel="stylesheet preload" as="style">
+    <link href="{{ relative_path }}assets/css/fonts.css" rel="stylesheet preload" as="style">
     {% endif %}
-
     <!-- Alpine.js for interactive components -->
     <script src="{{ relative_path }}assets/js/alpine.min.js" defer></script>
 </head>
