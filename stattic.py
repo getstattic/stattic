@@ -954,6 +954,37 @@ body {{
     </url>
     '''
 
+    def generate_robots_txt(self, mode="public"):
+        """Generate a robots.txt file with public or private settings."""
+        try:
+            # Prepare robots.txt content based on mode
+            if mode == "private":
+                robots_txt_content = "User-agent: *\nDisallow: /"
+                self.logger.info("Generated private robots.txt (Disallow all)")
+            elif mode == "public":
+                if self.site_url:  # Only generate the public robots.txt if site_url is provided
+                    robots_txt_content = f"""User-agent: *
+Allow: /
+
+# Sitemap URL
+Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
+"""
+                    self.logger.info("Generated public robots.txt (Allow all)")
+                else:
+                    self.logger.warning("Public robots.txt requires site_url. Skipping creation.")
+                    return
+            else:
+                self.logger.warning(f"Unknown robots.txt mode '{mode}'. Skipping creation.")
+                return
+
+            # Write robots.txt to the output directory
+            robots_txt_path = os.path.join(self.output_dir, 'robots.txt')
+            with open(robots_txt_path, 'w') as robots_file:
+                robots_file.write(robots_txt_content)
+            self.logger.info(f"robots.txt written to {robots_txt_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to generate robots.txt: {e}")
+
     def build_404_page(self):
         """Build and generate the 404 error page for GitHub Pages."""
         try:
@@ -989,6 +1020,9 @@ body {{
         # Build the 404 page
         self.build_404_page()
 
+        # Generate robots.txt based on the flag
+        self.generate_robots_txt(mode=getattr(args, 'robots', 'public'))
+
         # Minify assets if --minify is enabled
         if getattr(args, 'minify', False):
             self.minify_assets()
@@ -1017,6 +1051,7 @@ if __name__ == "__main__":
     parser.add_argument('--site-url', type=str, help='Specify the site URL for production builds')
     parser.add_argument('--watch', action='store_true', help='Enable watch mode to automatically rebuild on file changes')
     parser.add_argument('--minify', action='store_true', help='Minify CSS and JS into single files')
+    parser.add_argument('--robots',type=str,choices=['public', 'private'],default='public',help="Generate a public or private robots.txt file (default: public)")
 
     args = parser.parse_args()
 
