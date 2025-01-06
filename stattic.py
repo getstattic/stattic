@@ -999,6 +999,7 @@ def resolve_output_path(output_dir):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Stattic - Static Site Generator')
     parser.add_argument('--output', type=str, default='output', help='Specify the output directory')
+    parser.add_argument('--content', type=str, default='content', help='Specify the content directory')
     parser.add_argument('--posts-per-page', type=int, default=5, help='Number of posts per index page')
     parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author'], default='date', help='Sort posts by date, title, or author')
     parser.add_argument('--fonts', type=str, help='Comma-separated list of Google Fonts to download')
@@ -1014,8 +1015,9 @@ if __name__ == "__main__":
     # Parse fonts
     fonts = [font.strip() for font in args.fonts.split(',')] if args.fonts else None
 
-    # Create a generator with the specified output directory, posts per page, sorting method, fonts, and site_url
+    # Create a generator with the specified directories, output, and settings
     generator = Stattic(
+        content_dir=args.content,
         output_dir=output_dir,
         posts_per_page=args.posts_per_page,
         sort_by=args.sort_by,
