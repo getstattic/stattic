@@ -489,6 +489,21 @@ body {{
 
         return content
 
+    def parse_date(self, date_str):
+        """Parse the date string into a datetime object."""
+        if isinstance(date_str, datetime):
+            return date_str
+        elif isinstance(date_str, date):
+            return datetime(date_str.year, date_str.month, date_str.day)
+        elif isinstance(date_str, str):
+            for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%d', '%b %d, %Y']:
+                try:
+                    return datetime.strptime(date_str, fmt)
+                except ValueError:
+                    continue
+        self.logger.warning(f"Unable to parse date: {date_str}. Using minimum date as fallback.")
+        return datetime.min  # Fallback to the earliest date for sorting
+
     def parse_markdown_with_metadata(self, filepath):
         """Extract frontmatter and markdown content from the file, process images."""
         try:
@@ -498,19 +513,20 @@ body {{
 
             # Check if the content contains frontmatter (starts with ---)
             if content.startswith('---'):
-                # Split into frontmatter and content
                 parts = content.split('---', 2)  # Splitting into 3 parts: '', frontmatter, content
-                if len(parts) == 3:  # Proper frontmatter and content found
+                if len(parts) == 3:
                     frontmatter, markdown_content = parts[1], parts[2]
                     metadata = yaml.safe_load(frontmatter) or {}
                 else:
-                    # Malformed frontmatter, fallback to handling as plain markdown
                     self.logger.warning(f"Malformed frontmatter in {filepath}. Treating entire content as markdown.")
                     metadata, markdown_content = {}, content
             else:
-                # No frontmatter at all, treat entire content as markdown
                 self.logger.info(f"No frontmatter in {filepath}. Treating as pure markdown.")
                 metadata, markdown_content = {}, content
+
+            # Parse and normalize the date in metadata
+            if 'date' in metadata:
+                metadata['date'] = self.parse_date(metadata['date'])
 
             # Process images in the markdown content
             markdown_content = self.process_images(markdown_content)
@@ -719,10 +735,15 @@ body {{
     def build_index_page(self):
         """Render and build the index (homepage) with the list of posts."""
         try:
-            # Sort posts by date in descending order and take the most recent ones
+            # Ensure all posts have a valid parsed date for sorting
+            for post in self.posts:
+                post_date_str = post.get('date', '')
+                post['parsed_date'] = self.parse_date(post_date_str)  # Add parsed_date for sorting
+
+            # Sort posts by parsed_date in descending order
             posts_for_index = sorted(
                 self.posts,
-                key=lambda post: self.format_date(post.get('date', '')),
+                key=lambda post: post.get('parsed_date', datetime.min),  # Fallback to the earliest date
                 reverse=True
             )[:self.posts_per_page]
 
