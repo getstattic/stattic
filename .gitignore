@@ -3,3 +3,4 @@ my-site/*
 content/*
 logs/*
 autoStattic.py
+__pycache__
