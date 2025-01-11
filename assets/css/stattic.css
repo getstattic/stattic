@@ -127,6 +127,14 @@
     line-height: 1.5;
 }
 
+.stattic-content ul li {
+    list-style-type: disc;
+}
+
+.stattic-content ol li {
+    list-style-type: decimal;
+}
+
 .stattic-content blockquote {
     margin-left: 1.5rem;
     padding-left: 1.5rem;
