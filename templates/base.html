@@ -7,7 +7,6 @@
     <meta name="description" content="{% if seo_description %}{{ seo_description }}{% else %}Stattic is a fast, lightweight static site generator that optimizes images, supports custom fonts, and easily integrates with GitHub Pages for quick, SEO-friendly site deployment without the bloat of traditional CMS platforms like WordPress.{% endif %}">
     <meta name="keywords" content="{% if seo_keywords %}{{ seo_keywords }}{% else %}SSG, Static Site Generator{% endif %}">
     <meta name="author" content="{% if author %}{{ author }}{% else %}Robert DeVore{% endif %}">
-    <!-- Use relative_path to correctly reference assets -->
     <link href="{{ relative_path }}assets/css/tailwind.min.css" rel="stylesheet preload" as="style">
     {% if minify %}
     <link href="{{ relative_path }}assets/css/stattic.min.css" rel="stylesheet preload" as="style">
@@ -37,14 +36,14 @@
     <!-- Alpine.js for interactive components -->
     <script src="{{ relative_path }}assets/js/alpine.min.js" defer></script>
 </head>
-<body class="bg-background text-primary quicksand-300">
+<body class="bg-background bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-slate-950 text-primary quicksand-300">
 
 <!-- Skip Links for Accessibility -->
 <a href="#main-content" class="skip-link">Skip to main content</a>
 <a href="#navigation" class="skip-link">Skip to navigation</a>
 <a href="#footer" class="skip-link">Skip to footer</a>
 
-<header class="bg-background shadow" id="navigation">
+<header id="navigation">
     <div class="container max-w-screen-xl m-auto py-6 px-4 flex justify-between items-center">
         <!-- Home link using relative_path -->
         <h2 class="text-3xl font-bold quicksand-700"><a href="{{ relative_path }}index.html" class="text-links">Stattic</a></h2>
