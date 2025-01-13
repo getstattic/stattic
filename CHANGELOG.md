@@ -1,5 +1,16 @@
 # CHANGELOG.md
 
+## 0.0.8
+
+*  [📦 NEW: Added --assets flag to serve assets from outside of Stattic](https://github.com/getstattic/stattic/commit/6524ce0f859826ce0bd4cebc153857be01967884)
+* [👌 IMPROVE: Updated 404 title text to be centered](https://github.com/getstattic/stattic/commit/bf15991e9261358ff7a16edbfc989072cfb2723b)
+* [👌 IMPROVE: Updated various template classes](https://github.com/getstattic/stattic/commit/80e90e9022cff09a67a24638d067ba8d1679ff17)
+* [👌 IMPROVE: Updated date output and post sorting by date](https://github.com/getstattic/stattic/commit/ffa2603b9e5f2f1b61944aa63c0ce0afb8f71b5b)
+* [👌 IMPROVE: Updated header and background styles in base.html](https://github.com/getstattic/stattic/commit/a1aab6c6a76fcac3f31ac5d7d3c81ed337657a92)
+* [👌 IMPROVE: Updated post excerpt text color from gray-400 to slate-50](https://github.com/getstattic/stattic/commit/f54b8a89ab3daee4422d94c7d4dc049a5e30a6b2)
+* [👌 IMPROVE: Updated ul and ol style types](https://github.com/getstattic/stattic/commit/fec02d8110436b4724968e59ee020aa34cccab2d)
+* [👌 IMPROVE: Updated TailWindCSS to ^3.4.17](https://github.com/getstattic/stattic/commit/852fd89b3b3c4708e3ec2453d2d079b4fe9e0258)
+
 ## 0.0.7
 
 * [📦 NEW: Added --content flag to pull content from outside of Stattic](https://github.com/getstattic/stattic/commit/941d17521dbf1108c227ab4151f0f86ebde312d9)
