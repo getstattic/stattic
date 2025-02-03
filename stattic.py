@@ -696,7 +696,8 @@ body {{
                 'title': metadata.get('title', 'Untitled'),
                 'excerpt': self.markdown_filter(metadata.get('excerpt', self.generate_excerpt(md_content))),
                 'permalink': f"blog/{post_slug}/",
-                'date': self.format_date(metadata.get('date'))
+                'date': self.format_date(metadata.get('date')),
+                'metadata': metadata
             }
             self.posts.append(post_metadata)
             
