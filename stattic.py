@@ -18,8 +18,354 @@ from urllib.parse import urlparse
 from email.utils import formatdate
 from hashlib import md5
 import xml.etree.ElementTree as ET
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap'
+
+# Global variable for FileProcessor instance in each worker process
+file_processor = None
+
+def initializer(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir):
+    global file_processor
+    file_processor = FileProcessor(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir)
+
+class FileProcessor:
+    def __init__(self, templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir):
+        self.templates_dir = templates_dir
+        self.output_dir = output_dir
+        self.images_dir = images_dir
+        self.categories = categories
+        self.tags = tags
+        self.authors = authors
+        self.pages = pages
+        self.site_url = site_url
+        self.content_dir = content_dir
+        self.env = Environment(loader=FileSystemLoader(templates_dir))
+        self.markdown_parser = self.create_markdown_parser()
+
+    def create_markdown_parser(self):
+        """Create a Mistune markdown parser with a custom renderer."""
+        class CustomRenderer(mistune.HTMLRenderer):
+            def block_code(self, code, info=None):
+                escaped_code = mistune.escape(code)
+                return '<pre style="white-space: pre-wrap;"><code>{}</code></pre>'.format(escaped_code)
+        return mistune.create_markdown(
+            renderer=CustomRenderer(),
+            plugins=['table', 'task_lists', 'strikethrough']
+        )
+
+    def markdown_filter(self, text):
+        """Convert markdown text to HTML."""
+        return self.markdown_parser(text)
+
+    def parse_date(self, date_str):
+        """Parse a date string."""
+        if isinstance(date_str, datetime):
+            return date_str
+        elif isinstance(date_str, date):
+            return datetime(date_str.year, date_str.month, date_str.day)
+        elif isinstance(date_str, str):
+            for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%d', '%b %d, %Y']:
+                try:
+                    return datetime.strptime(date_str, fmt)
+                except ValueError:
+                    continue
+        return datetime.min
+
+    def download_image(self, url, output_dir):
+        """Download an image and save it locally."""
+        if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
+            return None
+        try:
+            if url.startswith('http'):
+                response = requests.get(url)
+                response.raise_for_status()
+                image_name = os.path.basename(url)
+                image_path = os.path.join(output_dir, image_name)
+                with open(image_path, 'wb') as image_file:
+                    image_file.write(response.content)
+                return image_path
+            return None
+        except requests.exceptions.RequestException:
+            return None
+
+    def convert_image_to_webp(self, image_path):
+        """Convert an image to WebP format and delete the original."""
+        try:
+            img = Image.open(image_path)
+            webp_path = image_path.rsplit('.', 1)[0] + '.webp'
+            img.save(webp_path, 'WEBP')
+            os.remove(image_path)
+            return webp_path
+        except Exception:
+            return None
+
+    def copy_local_image(self, local_image_path):
+        """
+        Copy a local image (already on disk) to self.images_dir.
+        Return the path to the newly-copied image, or None if it doesn't exist.
+        """
+        if not os.path.exists(local_image_path):
+            return None
+
+        image_name = os.path.basename(local_image_path)
+        dest_path = os.path.join(self.images_dir, image_name)
+
+        # Only copy if not already present
+        if not os.path.exists(dest_path):
+            shutil.copy2(local_image_path, dest_path)
+
+        return dest_path
+
+    def process_images(self, content, markdown_file_path=None):
+        """
+        Find image references (Markdown, <img>, <a href>, srcset), including local/relative paths.
+        Download/copy them to images_dir, convert to .webp, then update references in content.
+        Return (updated_content, images_converted_count).
+        """
+        # Markdown images: ![alt](url)
+        markdown_image_urls = re.findall(r'!\[.*?\]\((.*?)\)', content)
+        # HTML <img src="...">
+        html_image_urls = re.findall(r'<img\s+[^>]*src="([^"]+)"', content)
+        # <a href="..." if it ends with common image extension
+        href_urls = re.findall(r'<a\s+[^>]*href="([^"]+)"', content)
+
+        # Collect any images in srcset="..."
+        srcset_urls = re.findall(r'srcset="([^"]+)"', content)
+        all_srcset_urls = []
+        for s in srcset_urls:
+            entries = s.split(',')
+            for e in entries:
+                # each e could be "image.jpg 1x", so we want just "image.jpg"
+                possible_url = e.strip().split(' ')[0]
+                all_srcset_urls.append(possible_url)
+
+        # Combine everything into a set
+        image_urls = set(markdown_image_urls + html_image_urls + href_urls + all_srcset_urls)
+
+        local_image_paths = {}
+        images_converted = 0
+
+        for url in image_urls:
+            if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
+                continue
+
+            image_name = os.path.basename(url)
+            webp_filename = image_name.rsplit('.', 1)[0] + '.webp'
+            webp_image_path = os.path.join(self.images_dir, webp_filename)
+
+            if os.path.exists(webp_image_path):
+                local_image_paths[url] = f"images/{os.path.basename(webp_image_path)}"
+                continue
+
+            new_image_path = None
+
+            if url.lower().startswith('http'):
+                new_image_path = self.download_image(url, self.images_dir)
+            else:
+                # Local path resolution
+                if markdown_file_path:
+                    markdown_dir = os.path.dirname(markdown_file_path)
+                    possible_local_path = os.path.abspath(os.path.join(markdown_dir, url))
+                else:
+                    possible_local_path = os.path.abspath(os.path.join(self.content_dir, url))
+
+                if os.path.exists(possible_local_path):
+                    new_image_path = self.copy_local_image(possible_local_path)
+
+            if new_image_path and os.path.exists(new_image_path):
+                converted_path = self.convert_image_to_webp(new_image_path)
+                if converted_path:
+                    images_converted += 1
+                    local_image_paths[url] = f"images/{os.path.basename(converted_path)}"
+
+        # Replace src="..." and href="..."
+        for original_url, webp_rel_path in local_image_paths.items():
+            # Replace src="original" => src="webp"
+            content = content.replace(f'src="{original_url}"', f'src="{webp_rel_path}"')
+            # Also if <a href="original"> => <a href="webp">
+            content = content.replace(f'href="{original_url}"', f'href="{webp_rel_path}"')
+
+        # Now replace srcset references with new .webp paths
+        def replace_srcset(match):
+            srcset_value = match.group(1)
+            entries = srcset_value.split(',')
+            new_entries = []
+            for e in entries:
+                parts = e.strip().split(' ')
+                if parts:
+                    original_src = parts[0]
+                    if original_src in local_image_paths:
+                        parts[0] = local_image_paths[original_src]
+                new_entries.append(' '.join(parts))
+            return f'srcset="{", ".join(new_entries)}"'
+
+        content = re.sub(r'srcset="([^"]+)"', replace_srcset, content)
+
+        return content, images_converted
+
+    def parse_markdown_with_metadata(self, filepath):
+        """Extract frontmatter, parse date, process images. Return (metadata, updated_md, images_converted)."""
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Extract frontmatter
+        if content.startswith('---'):
+            parts = content.split('---', 2)
+            if len(parts) == 3:
+                frontmatter, markdown_content = parts[1], parts[2]
+                metadata = yaml.safe_load(frontmatter) or {}
+            else:
+                metadata, markdown_content = {}, content
+        else:
+            metadata, markdown_content = {}, content
+
+        # Parse the date in metadata
+        if 'date' in metadata:
+            metadata['date'] = self.parse_date(metadata['date'])
+
+        # Process images (which returns (updated_content, images_converted))
+        updated_markdown, images_converted = self.process_images(markdown_content, markdown_file_path=filepath)
+
+        # Return all three pieces
+        return metadata, updated_markdown, images_converted
+
+    def format_date(self, date_str=None):
+        """Format a date string."""
+        if not date_str:
+            return ''
+        if isinstance(date_str, datetime):
+            return date_str.strftime('%b %d, %Y')
+        elif isinstance(date_str, date):
+            return datetime(date_str.year, date_str.month, date_str.day).strftime('%b %d, %Y')
+        elif isinstance(date_str, str):
+            try:
+                return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S').strftime('%b %d, %Y')
+            except ValueError:
+                try:
+                    return datetime.strptime(date_str, '%Y-%m-%d').strftime('%b %d, %Y')
+                except ValueError:
+                    return date_str
+        return ''
+
+    def get_author_name(self, author_id):
+        """Get author name from ID."""
+        return self.authors.get(author_id, "Unknown")
+
+    def build_post_or_page(self, metadata, html_content, post_slug, output_dir, is_page):
+        os.makedirs(output_dir, exist_ok=True)
+        output_file_path = os.path.join(output_dir, 'index.html')
+        title = metadata.get('title', 'Untitled') if isinstance(metadata.get('title'), str) else 'Untitled'
+        author_name = self.get_author_name(metadata.get('author', 'Unknown'))
+        formatted_date = self.format_date(metadata.get('date'))
+        relative_path = self.calculate_relative_path(output_dir)
+        template_name = 'page.html' if is_page else 'post.html'
+        template = self.env.get_template(template_name)
+
+        # Compute categories and tags, similar to Stattic.build_post_or_page
+        post_categories = []
+        for cat_id in metadata.get('categories', []):
+            if isinstance(cat_id, int):
+                category = self.categories.get(cat_id, {})
+                if isinstance(category, dict):
+                    post_categories.append(category.get('name', f"Unknown (ID: {cat_id})"))
+                elif isinstance(category, str):
+                    post_categories.append(category)
+            else:
+                print(f"Invalid category ID: {cat_id}")  # Use print since no logger
+
+        post_tags = []
+        for tag_id in metadata.get('tags', []):
+            if isinstance(tag_id, int):
+                tag = self.tags.get(tag_id, {})
+                post_tags.append(tag.get('name', f"Unknown (ID: {tag_id})"))
+            else:
+                print(f"Invalid tag ID: {tag_id}")
+
+        rendered_html = template.render(
+            content=html_content,
+            title=title,
+            author=author_name,
+            date=formatted_date,
+            categories=post_categories,
+            tags=post_tags,
+            featured_image=metadata.get('featured_image', None),
+            seo_title=metadata.get('seo_title', title),
+            seo_keywords=metadata.get('keywords', ''),
+            seo_description=metadata.get('description', ''),
+            lang=metadata.get('lang', 'en'),
+            pages=self.pages,
+            relative_path=relative_path,
+            metadata=metadata,
+            page=metadata,
+            site_url=self.site_url
+        )
+        with open(output_file_path, 'w') as output_file:
+            output_file.write(rendered_html)
+
+    def generate_excerpt(self, content):
+        """Generate an excerpt from content."""
+        if not content:
+            return ''
+        words = content.split()[:30]
+        return ' '.join(words) + '...'
+
+    def process(self, file_path, is_page):
+        """
+        Process a single .md file. 
+        Returns a dict: {
+        "post_metadata": <dict or None>,
+        "images_converted": <int>
+        }
+        """
+        try:
+            # Parse frontmatter and do initial processing
+            metadata, markdown_content, images_converted = self.parse_markdown_with_metadata(file_path)
+
+            # If it's a draft post, skip
+            if not is_page and metadata.get('draft', False):
+                print(f"Skipping draft: {file_path}")
+                return {"post_metadata": None, "images_converted": 0}
+
+            # Convert the content to HTML
+            html_content = self.markdown_filter(markdown_content)
+
+            # Compute a slug
+            slug = metadata.get('custom_url', os.path.basename(file_path).replace('.md', ''))
+            if is_page:
+                output_dir = os.path.join(self.output_dir, slug)
+            else:
+                output_dir = os.path.join(self.output_dir, 'blog', slug)
+
+            # Build the final page or post (writes to index.html)
+            self.build_post_or_page(metadata, html_content, slug, output_dir, is_page=is_page)
+
+            if is_page:
+                # Pages do not produce post_metadata
+                return {"post_metadata": None, "images_converted": images_converted}
+            else:
+                # Prepare metadata for the main index page
+                permalink = f"blog/{slug}/"
+                post_meta = {
+                    'title': metadata.get('title', 'Untitled'),
+                    'excerpt': self.markdown_filter(
+                        metadata.get('excerpt', self.generate_excerpt(markdown_content))
+                    ),
+                    'permalink': permalink,
+                    'date': self.format_date(metadata.get('date')),
+                    'metadata': metadata
+                }
+                return {"post_metadata": post_meta, "images_converted": images_converted}
+
+        except Exception as e:
+            print(f"Error processing file {file_path}: {e}")
+            return {"post_metadata": None, "images_converted": 0}
+
+    def calculate_relative_path(self, current_output_dir):
+        root = os.path.abspath(self.output_dir)
+        current = os.path.abspath(current_output_dir)
+        relative = os.path.relpath(root, current)
+        return './' if relative == '.' else relative + '/'
 
 class Stattic:
     def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None, site_url=None, assets_dir=None):
@@ -29,37 +375,34 @@ class Stattic:
         self.templates_dir = templates_dir
         self.output_dir = output_dir
         self.logger = self.setup_logging()
-        self.images_dir = os.path.join(output_dir, 'images')  # Images directory for downloads
-        self.assets_src_dir = assets_dir or os.path.join(os.path.dirname(__file__), 'assets')  # Custom or default assets folder
-        self.assets_output_dir = os.path.join(output_dir, 'assets')  # Output folder for assets
-        self.fonts = fonts if fonts else ['Quicksand']  # Default to Quicksand if no font is passed
+        self.images_dir = os.path.join(output_dir, 'images')
+        self.assets_src_dir = assets_dir or os.path.join(os.path.dirname(__file__), 'assets')
+        self.assets_output_dir = os.path.join(output_dir, 'assets')
+        self.fonts = fonts if fonts else ['Quicksand']
         self.env = Environment(loader=FileSystemLoader(self.templates_dir))
-        self.posts = []  # Store metadata of all posts for index, archive, and RSS generation
-        self.pages = []  # Track pages for navigation
-        self.pages_generated = 0
+        self.posts = []
+        self.pages = []
         self.posts_generated = 0
+        self.pages_generated = 0
         self.posts_per_page = posts_per_page
         self.sort_by = sort_by
         self.categories = {}
         self.tags = {}
-        self.authors = {}  # Store author mappings
-        self.image_conversion_count = 0  # Track total number of converted images
-        self.site_url = site_url.rstrip('/') if site_url else None  # Ensure no trailing slash
-        self.log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')  # Store the log file path
+        self.authors = {}
+        self.image_conversion_count = 0
+        self.site_url = site_url.rstrip('/') if site_url else None
+        if not os.path.isdir(self.templates_dir):
+            raise FileNotFoundError(f"Templates directory '{self.templates_dir}' does not exist.")
+        self.load_categories_and_tags()
+        self.load_authors()
+        os.makedirs(self.images_dir, exist_ok=True)
 
         # Validate templates directory
         if not os.path.isdir(self.templates_dir):
             raise FileNotFoundError(f"Templates directory '{self.templates_dir}' does not exist.")
 
-        # Setup Jinja2 environment
-        self.env = Environment(loader=FileSystemLoader(self.templates_dir))
-
         # Log resolved paths
         self.logger.info(f"Using templates directory: {self.templates_dir}")
-
-        # Load categories, tags, and authors from YAML files
-        self.load_categories_and_tags()
-        self.load_authors()
 
         # Ensure images directory exists
         os.makedirs(self.images_dir, exist_ok=True)
@@ -67,33 +410,27 @@ class Stattic:
         # Ensure pages are loaded before generating posts or pages
         self.load_pages()
 
-        # Add custom markdown filter
+        # Add custom markdown filter with a reusable parser
+        self.markdown_parser = self.create_markdown_parser()
         self.env.filters['markdown'] = self.markdown_filter
 
-    def markdown_filter(self, text):
-        """Convert markdown text to HTML using Mistune 2.x with preserved line breaks in code blocks."""
-        start_time = time.time()
-
-        # Custom renderer to preserve line breaks in code blocks
+    def create_markdown_parser(self):
+        """Create a reusable Mistune markdown parser with custom renderer."""
         class CustomRenderer(mistune.HTMLRenderer):
             def block_code(self, code, info=None):
-                # Ensure line breaks and spacing are preserved within <pre><code>
                 escaped_code = mistune.escape(code)
                 return '<pre style="white-space: pre-wrap;"><code>{}</code></pre>'.format(escaped_code)
-
-        # Initialize Mistune with custom renderer and necessary plugins
-        markdown_parser = mistune.create_markdown(
+        return mistune.create_markdown(
             renderer=CustomRenderer(),
             plugins=['table', 'task_lists', 'strikethrough']
         )
 
-        # Convert Markdown content to HTML
-        html_output = markdown_parser(text)
-
+    def markdown_filter(self, text):
+        """Convert markdown text to HTML using the pre-created parser."""
+        start_time = time.time()
+        html_output = self.markdown_parser(text)
         end_time = time.time()
-        # Log the HTML output for debugging purposes
         self.logger.info(f"Converted Markdown to HTML using Mistune (Time taken: {end_time - start_time:.6f} seconds)")
-
         return html_output
 
     def setup_logging(self):
@@ -539,28 +876,8 @@ body {{
             raise
 
     def get_markdown_files(self, directory):
-        """Retrieve a list of Markdown files in a given directory."""
-        try:
-            start_time = time.time()
-            files = [f for f in os.listdir(directory) if f.endswith('.md')]
-            duration = time.time() - start_time
-            self.logger.info(f"Found {len(files)} markdown files in {directory} (Time taken: {duration:.6f} seconds)")
-            return files
-        except FileNotFoundError as e:
-            self.logger.error(f"Directory not found: {directory}")
-            raise
-
-    def calculate_relative_path(self, current_output_dir):
-        """Calculate the relative path from the current_output_dir to the root output directory."""
-        # Get the absolute paths
-        root = os.path.abspath(self.output_dir)
-        current = os.path.abspath(current_output_dir)
-
-        # Get the relative path
-        relative = os.path.relpath(root, current)
-
-        # If relative is '.', it means current_output_dir is root
-        return './' if relative == '.' else relative + '/'
+        """Retrieve Markdown files."""
+        return [f for f in os.listdir(directory) if f.endswith('.md')]
 
     def build_post_or_page(self, metadata, html_content, post_slug, output_dir, is_page=False):
         """Render the post or page template and write it to the output directory."""
@@ -663,63 +980,56 @@ body {{
             return f"Error: Template syntax error in {e.filename} at line {e.lineno}: {e.message}"
 
     def build_posts_and_pages(self):
-        """Process and build all posts and pages."""
-        # Process posts
-        post_files = self.get_markdown_files(self.posts_dir)
-        for post_file in post_files:
-            filepath = os.path.join(self.posts_dir, post_file)
+        post_files = [os.path.join(self.posts_dir, f) for f in self.get_markdown_files(self.posts_dir)]
+        page_files = [os.path.join(self.pages_dir, f) for f in self.get_markdown_files(self.pages_dir)]
 
-            # Extract metadata and markdown content
-            metadata, md_content = self.parse_markdown_with_metadata(filepath)
+        with ProcessPoolExecutor(
+            max_workers=os.cpu_count(),
+            initializer=initializer,
+            initargs=(
+                self.templates_dir,
+                self.output_dir,
+                self.images_dir,
+                self.categories,
+                self.tags,
+                self.authors,
+                self.pages,
+                self.site_url,
+                self.content_dir
+            )
+        ) as executor:
+            # Submit post jobs
+            post_futures = {executor.submit(process_file, pf, False): pf for pf in post_files}
+            for future in as_completed(post_futures):
+                pf = post_futures[future]
+                try:
+                    result = future.result()
+                    if result:
+                        # Accumulate the images
+                        self.image_conversion_count += result.get("images_converted", 0)
 
-            # Skip drafts
-            if metadata.get('draft', False):
-                self.logger.info(f"Skipping draft: {post_file}")
-                continue
+                        # If there's post_metadata, store it
+                        post_meta = result.get("post_metadata")
+                        if post_meta:
+                            self.posts.append(post_meta)
 
-            # Convert markdown content to HTML
-            html_content = self.convert_markdown_to_html(md_content)
+                except Exception as e:
+                    self.logger.error(f"Error building post {pf}: {e}")
 
-            # Determine the output directory for the post
-            post_slug = metadata.get('custom_url', post_file.replace('.md', ''))
-            post_output_dir = os.path.join(self.output_dir, 'blog', post_slug)
+            # Submit page jobs
+            page_futures = {executor.submit(process_file, pg, True): pg for pg in page_files}
+            for future in as_completed(page_futures):
+                pg = page_futures[future]
+                try:
+                    result = future.result()
+                    if result:
+                        self.image_conversion_count += result.get("images_converted", 0)
+                    self.pages_generated += 1
+                except Exception as e:
+                    self.logger.error(f"Error building page {pg}: {e}")
 
-            # Render the post and write it to the output directory
-            self.build_post_or_page(metadata, html_content, post_slug, post_output_dir, is_page=False)
-
-            # Determine the permalink (relative path)
-            permalink = f"blog/{post_slug}/"
-
-            # Collect post metadata for the index page
-            # When collecting post metadata
-            post_metadata = {
-                'title': metadata.get('title', 'Untitled'),
-                'excerpt': self.markdown_filter(metadata.get('excerpt', self.generate_excerpt(md_content))),
-                'permalink': f"blog/{post_slug}/",
-                'date': self.format_date(metadata.get('date')),
-                'metadata': metadata
-            }
-            self.posts.append(post_metadata)
-            
-            self.logger.info(f"Collected {len(self.posts)} posts for the index page.")
-
-        # Process pages (save in root directory)
-        page_files = self.get_markdown_files(self.pages_dir)
-        for page_file in page_files:
-            filepath = os.path.join(self.pages_dir, page_file)
-
-            # Extract metadata and markdown content
-            metadata, md_content = self.parse_markdown_with_metadata(filepath)
-
-            # Convert markdown content to HTML
-            html_content = self.convert_markdown_to_html(md_content)
-
-            # Determine the output directory for the page (save directly in the root output folder)
-            page_slug = metadata.get('custom_url', page_file.replace('.md', ''))
-            page_output_dir = os.path.join(self.output_dir, page_slug)  # No 'pages' subfolder
-
-            # Render the page and write it to the output directory
-            self.build_post_or_page(metadata, html_content, page_slug, page_output_dir, is_page=True)
+        # Finally
+        self.posts_generated = len(self.posts)
 
     def convert_markdown_to_html(self, markdown_content):
         """Convert Markdown content to HTML."""
@@ -734,37 +1044,50 @@ body {{
         return ' '.join(words) + '...'
 
     def build_index_page(self):
-        """Render and build the index (homepage) with the list of posts."""
-        try:
-            # Ensure all posts have a valid parsed date for sorting
-            for post in self.posts:
-                post_date_str = post.get('date', '')
-                post['parsed_date'] = self.parse_date(post_date_str)  # Add parsed_date for sorting
+        """
+        Build the homepage (index.html), allowing --sort-by=title,author,date.
+        We parse each post's date, then sort accordingly.
+        """
+        # Parse dates for all posts
+        for post in self.posts:
+            post['parsed_date'] = self.parse_date(post.get('date', ''))
 
-            # Sort posts by parsed_date in descending order
-            posts_for_index = sorted(
-                self.posts,
-                key=lambda post: post.get('parsed_date', datetime.min),  # Fallback to the earliest date
-                reverse=True
-            )[:self.posts_per_page]
+        # Decide how to sort
+        if self.sort_by == 'title':
+            sort_key = lambda p: p.get('title', '').lower()
+            reverse_sort = False  # alphabetical ascending
+        elif self.sort_by == 'author':
+            # We assume 'author' is stored in p['metadata'] or fallback to empty
+            def author_lower(p):
+                author_id = p['metadata'].get('author', '') if 'metadata' in p else ''
+                return str(author_id).lower()  # cast to string to avoid errors
+            sort_key = author_lower
+            reverse_sort = False
+        else:
+            # default to date descending
+            sort_key = lambda p: p.get('parsed_date', datetime.min)
+            reverse_sort = True
 
-            # Render the index template
-            rendered_html = self.render_template(
-                'index.html',
-                posts=posts_for_index,
-                pages=self.pages,
-                page={}  # Provide an empty page context
-            )
+        # Sort posts
+        sorted_posts = sorted(self.posts, key=sort_key, reverse=reverse_sort)
 
-            # Save the rendered HTML to the output directory
-            output_file_path = os.path.join(self.output_dir, 'index.html')
-            with open(output_file_path, 'w') as output_file:
-                output_file.write(rendered_html)
+        # Slice out the first N
+        posts_for_index = sorted_posts[:self.posts_per_page]
 
-            self.logger.info(f"Generated index page at {output_file_path}")
+        # Render
+        template = self.env.get_template('index.html')
+        rendered_html = template.render(
+            posts=posts_for_index,
+            pages=self.pages,
+            page={},
+            relative_path='./'
+        )
 
-        except Exception as e:
-            self.logger.error(f"Failed to generate index page: {e}")
+        output_path = os.path.join(self.output_dir, 'index.html')
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(rendered_html)
+
+        self.logger.info(f"Generated index page at {output_path}")
 
     def build_static_pages(self):
         """Generate static pages like contact page."""
@@ -1056,54 +1379,45 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
         self.logger.info(f"Total images converted to WebP: {self.image_conversion_count}")
 
 def resolve_output_path(output_dir):
-    # If the output path starts with "~/", expand it to the user's home directory
+    """If the output path starts with "~/", expand it to the user's home directory"""
     if output_dir.startswith("~/"):
         output_dir = os.path.expanduser(output_dir)
     return output_dir
 
+def process_file(file_path, is_page):
+    """Process a file using the global FileProcessor."""
+    global file_processor
+    return file_processor.process(file_path, is_page)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Stattic - Static Site Generator')
-    parser.add_argument('--output', type=str, default='output', help='Specify the output directory')
-    parser.add_argument('--content', type=str, default='content', help='Specify the content directory')
-    parser.add_argument('--templates', type=str, help='Specify the templates directory (default: templates/)')
-    parser.add_argument('--assets', type=str, help='Specify a custom assets directory to include in the build')
-    parser.add_argument('--posts-per-page', type=int, default=5, help='Number of posts per index page')
-    parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author'], default='date', help='Sort posts by date, title, or author')
-    parser.add_argument('--fonts', type=str, help='Comma-separated list of Google Fonts to download')
-    parser.add_argument('--site-url', type=str, help='Specify the site URL for production builds')
-    parser.add_argument('--robots', type=str, choices=['public', 'private'], default='public', help="Generate a public or private robots.txt file (default: public)")
-    parser.add_argument('--watch', action='store_true', help='Enable watch mode to automatically rebuild on file changes')
-    parser.add_argument('--minify', action='store_true', help='Minify CSS and JS into single files')
+    parser.add_argument('--output', type=str, default='output')
+    parser.add_argument('--content', type=str, default='content')
+    parser.add_argument('--templates', type=str, default=os.path.join(os.path.dirname(__file__), 'templates'))
+    parser.add_argument('--assets', type=str)
+    parser.add_argument('--posts-per-page', type=int, default=5)
+    parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author'], default='date')
+    parser.add_argument('--fonts', type=str)
+    parser.add_argument('--site-url', type=str)
+    parser.add_argument('--robots', type=str, choices=['public', 'private'], default='public')
+    parser.add_argument('--watch', action='store_true')
+    parser.add_argument('--minify', action='store_true')
 
     args = parser.parse_args()
-
-    # Resolve the output directory path
-    output_dir = resolve_output_path(args.output)
-
-    # Use the provided templates directory or default to 'templates/'
-    templates_dir = args.templates if args.templates else os.path.join(os.path.dirname(__file__), 'templates')
-
-    # Use the provided assets directory if specified
-    assets_dir = args.assets
-
-    # Parse fonts
+    output_dir = os.path.expanduser(args.output) if args.output.startswith("~/") else args.output
     fonts = [font.strip() for font in args.fonts.split(',')] if args.fonts else None
 
-    # Create a generator with the specified directories, output, and settings
     generator = Stattic(
         content_dir=args.content,
-        templates_dir=templates_dir,
+        templates_dir=args.templates,
         output_dir=output_dir,
         posts_per_page=args.posts_per_page,
         sort_by=args.sort_by,
         fonts=fonts,
         site_url=args.site_url,
-        assets_dir=assets_dir
+        assets_dir=args.assets
     )
-
     generator.build()
-
-    # Generate RSS and sitemap only if site_url is provided (production mode)
     if generator.site_url:
         generator.generate_rss_feed(generator.site_url)
         generator.generate_xml_sitemap(generator.site_url)
