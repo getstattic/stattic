@@ -46,14 +46,14 @@
 <header id="navigation">
     <div class="container max-w-screen-xl m-auto py-6 px-4 flex justify-between items-center">
         <!-- Home link using relative_path -->
-        <h2 class="text-3xl font-bold quicksand-700"><a href="{{ relative_path }}index.html" class="text-links">Stattic</a></h2>
+        <h2 class="text-3xl font-bold quicksand-700"><a href="{{ relative_path }}" class="text-links">Stattic</a></h2>
         <nav>
             <ul class="flex space-x-6">
                 {% for page in pages %}
                     {% if page.nav_hide != 'true' %}
                         <li>
                             <!-- Internal links using relative_path and permalink -->
-                            <a href="{{ relative_path }}{{ page.permalink.strip('/') }}/index.html" class="text-primary hover:underline quicksand-700">{{ page.title }}</a>
+                            <a href="{{ relative_path }}{{ page.permalink.strip('/') }}/" class="text-primary hover:underline quicksand-700">{{ page.title }}</a>
                         </li>
                     {% endif %}
                 {% endfor %}
