@@ -532,7 +532,7 @@ body {{
             markdown_content = self.process_images(markdown_content)
 
             duration = time.time() - start_time
-            self.logger.info(f"Parsed markdown file: {filepath} (Time taken: {duration:.2f} seconds)")
+            self.logger.info(f"Parsed markdown file: {filepath} (Time taken: {duration:.6f} seconds)")
             return metadata, markdown_content
         except Exception as e:
             self.logger.error(f"Failed to parse markdown file: {filepath} - {e}")
@@ -544,7 +544,7 @@ body {{
             start_time = time.time()
             files = [f for f in os.listdir(directory) if f.endswith('.md')]
             duration = time.time() - start_time
-            self.logger.info(f"Found {len(files)} markdown files in {directory} (Time taken: {duration:.2f} seconds)")
+            self.logger.info(f"Found {len(files)} markdown files in {directory} (Time taken: {duration:.6f} seconds)")
             return files
         except FileNotFoundError as e:
             self.logger.error(f"Directory not found: {directory}")
@@ -653,7 +653,7 @@ body {{
             context['minify'] = getattr(args, 'minify', False)  # Pass the minify flag
             rendered_template = template.render(context)
             duration = time.time() - start_time
-            self.logger.info(f"Rendered template: {template_name} (Time taken: {duration:.2f} seconds)")
+            self.logger.info(f"Rendered template: {template_name} (Time taken: {duration:.6f} seconds)")
             return rendered_template
         except TemplateNotFound as e:
             self.logger.error(f"Template not found: {template_name}")
@@ -1050,7 +1050,7 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
 
         build_end_time = time.time()
         total_time = build_end_time - build_start_time
-        self.logger.info(f"Site build completed successfully in {total_time:.2f} seconds.")
+        self.logger.info(f"Site build completed successfully in {total_time:.6f} seconds.")
         self.logger.info(f"Total posts generated: {self.posts_generated}")
         self.logger.info(f"Total pages generated: {self.pages_generated}")
         self.logger.info(f"Total images converted to WebP: {self.image_conversion_count}")
