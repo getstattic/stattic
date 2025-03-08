@@ -2,6 +2,7 @@
 
 {% block content %}
 <main class="container max-w-2xl m-auto py-10 px-4" id="main-content">
+
     <ul class="space-y-6">
         {% for post in posts %}
         <li>
@@ -12,5 +13,46 @@
         </li>
         {% endfor %}
     </ul>
-</main><!-- #main-content -->
+
+    {% if total_pages > 1 %}
+    <nav class="mt-8">
+      <ul class="flex gap-2 justify-center">
+        {% if current_page > 1 %}
+          <li>
+            <a href="{% if current_page == 2 %}{{ relative_path }}{% else %}{{ relative_path }}page/{{ current_page - 1 }}/{% endif %}" class="px-4 py-2 border rounded-md border-primary bg-transparent text-white hover:bg-slate-800 hover:text-white">
+              Prev
+            </a>
+          </li>
+        {% endif %}
+
+        {% for link in page_numbers %}
+          {% if link == '...' %}
+            <li><span class="px-4 py-2 text-gray-400">…</span></li>
+          {% elif link == current_page %}
+            <li>
+              <span class="px-4 py-2 border border-primary rounded-md bg-slate-800 text-white">
+                {{ link }}
+              </span>
+            </li>
+          {% else %}
+            <li>
+              <a href="{% if link == 1 %}{{ relative_path }}{% else %}{{ relative_path }}page/{{ link }}/{% endif %}" class="px-4 py-2 border rounded-md border-primary bg-transparent text-white hover:bg-slate-800 hover:text-white">
+                {{ link }}
+              </a>
+            </li>
+          {% endif %}
+        {% endfor %}
+
+        {% if current_page < total_pages %}
+          <li>
+            <a href="{{ relative_path }}page/{{ current_page + 1 }}/" class="px-4 py-2 border rounded-md border-primary bg-transparent text-white hover:bg-slate-800 hover:text-white">
+              Next
+            </a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+    
+</main>
 {% endblock %}

@@ -1043,51 +1043,112 @@ body {{
         words = content.split()[:30]  # Take the first 30 words
         return ' '.join(words) + '...'
 
+    def calculate_relative_path(self, current_output_dir):
+        """Calculate the relative path from current_output_dir back to self.output_dir."""
+        root = os.path.abspath(self.output_dir)
+        current = os.path.abspath(current_output_dir)
+        relative = os.path.relpath(root, current)
+        return './' if relative == '.' else relative + '/'
+
+    def get_pagination_links(self, current_page, total_pages):
+        """
+        Returns a list of page numbers (or ellipses) to display in pagination.
+        Always shows page 1 and total_pages.
+        Shows two pages before and after the current page.
+        Inserts '...' when there is a gap.
+        """
+        delta = 2  # how many pages to show before and after current page
+        links = []
+
+        # Always include first page
+        links.append(1)
+
+        # Determine start and end range around current page
+        start = max(current_page - delta, 2)
+        end = min(current_page + delta, total_pages - 1)
+
+        # Insert ellipsis if there's a gap between 1 and start
+        if start > 2:
+            links.append('...')
+
+        # Add the range of pages
+        links.extend(range(start, end + 1))
+
+        # Insert ellipsis if there's a gap between end and the last page
+        if end < total_pages - 1:
+            links.append('...')
+
+        # Always include the last page if there's more than one page
+        if total_pages > 1:
+            links.append(total_pages)
+
+        return links
+
     def build_index_page(self):
         """
-        Build the homepage (index.html), allowing --sort-by=title,author,date.
-        We parse each post's date, then sort accordingly.
+        Build paginated index pages with numbered pagination that shows ellipses.
+        - index.html for page 1
+        - page/<n>/index.html for pages 2..n
         """
-        # Parse dates for all posts
+        # 1) Parse dates for sorting
         for post in self.posts:
             post['parsed_date'] = self.parse_date(post.get('date', ''))
 
-        # Decide how to sort
+        # 2) Decide how to sort (by title, author, or date)
         if self.sort_by == 'title':
             sort_key = lambda p: p.get('title', '').lower()
-            reverse_sort = False  # alphabetical ascending
+            reverse_sort = False
         elif self.sort_by == 'author':
-            # We assume 'author' is stored in p['metadata'] or fallback to empty
             def author_lower(p):
                 author_id = p['metadata'].get('author', '') if 'metadata' in p else ''
-                return str(author_id).lower()  # cast to string to avoid errors
+                return str(author_id).lower()
             sort_key = author_lower
             reverse_sort = False
         else:
-            # default to date descending
+            # default: sort by date descending
             sort_key = lambda p: p.get('parsed_date', datetime.min)
             reverse_sort = True
 
-        # Sort posts
+        # 3) Sort all posts
         sorted_posts = sorted(self.posts, key=sort_key, reverse=reverse_sort)
 
-        # Slice out the first N
-        posts_for_index = sorted_posts[:self.posts_per_page]
+        total_posts = len(sorted_posts)
+        posts_per_page = self.posts_per_page
+        total_pages = (total_posts + posts_per_page - 1) // posts_per_page  # integer ceiling
 
-        # Render
-        template = self.env.get_template('index.html')
-        rendered_html = template.render(
-            posts=posts_for_index,
-            pages=self.pages,
-            page={},
-            relative_path='./'
-        )
+        # 4) Loop to build each paginated page
+        for page_num in range(1, total_pages + 1):
+            start_idx = (page_num - 1) * posts_per_page
+            end_idx = start_idx + posts_per_page
+            page_posts = sorted_posts[start_idx:end_idx]
 
-        output_path = os.path.join(self.output_dir, 'index.html')
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(rendered_html)
+            # Determine output directory for current page
+            if page_num == 1:
+                page_output_dir = self.output_dir
+            else:
+                page_output_dir = os.path.join(self.output_dir, 'page', str(page_num))
+            os.makedirs(page_output_dir, exist_ok=True)
 
-        self.logger.info(f"Generated index page at {output_path}")
+            # Get truncated pagination links for this page
+            pagination_links = self.get_pagination_links(page_num, total_pages)
+
+            # Render the index page template with pagination variables
+            template = self.env.get_template('index.html')
+            rendered_html = template.render(
+                posts=page_posts,
+                pages=self.pages,
+                page={},
+                relative_path=self.calculate_relative_path(page_output_dir),
+                current_page=page_num,
+                total_pages=total_pages,
+                page_numbers=pagination_links
+            )
+
+            output_path = os.path.join(page_output_dir, 'index.html')
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(rendered_html)
+
+            self.logger.info(f"Generated paginated index page at {output_path}")
 
     def build_static_pages(self):
         """Generate static pages like contact page."""
