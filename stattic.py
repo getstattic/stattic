@@ -92,7 +92,7 @@ class Stattic:
 
         end_time = time.time()
         # Log the HTML output for debugging purposes
-        self.logger.info(f"Converted Markdown to HTML using Mistune (Time taken: {end_time - start_time:.2f} seconds)")
+        self.logger.info(f"Converted Markdown to HTML using Mistune (Time taken: {end_time - start_time:.6f} seconds)")
 
         return html_output
 
