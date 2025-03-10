@@ -11,17 +11,23 @@
 
 .skip-link {
     position: absolute;
-    top: -40px;
+    top: -60px;
     left: 0;
     background: #000;
     color: #fff;
-    padding: 8px 16px;
+    padding: 16px 24px;
     text-decoration: none;
     z-index: 100;
+    min-width: 48px;     /* Ensures the width is at least 48px */
+    min-height: 48px;    /* Ensures the height is at least 48px */
 }
 
-.skip-link:focus {
-    top: 0;
+.skip-link:focus,
+.skip-link:hover {
+    top: 0; /* brings link into view */
+    padding: 16px 24px;  /* larger padding for touch targets */
+    min-width: 48px;
+    min-height: 48px;
 }
 
 /* Existing Classes */
