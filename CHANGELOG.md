@@ -1,5 +1,9 @@
 # CHANGELOG.md
 
+## 0.1.0
+
+
+
 ## 0.0.8
 
 *  [📦 NEW: Added --assets flag to serve assets from outside of Stattic](https://github.com/getstattic/stattic/commit/6524ce0f859826ce0bd4cebc153857be01967884)

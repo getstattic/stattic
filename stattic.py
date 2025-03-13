@@ -368,6 +368,20 @@ class FileProcessor:
         relative = os.path.relpath(root, current)
         return './' if relative == '.' else relative + '/'
 
+class InfoFilter(logging.Filter):
+    """Filter to allow only selected INFO messages to be shown in the console."""
+    def filter(self, record):
+        if record.levelno == logging.INFO:
+            allowed_messages = [
+                "Starting build process...",
+                "Site build completed successfully", 
+                "Total posts generated", 
+                "Total pages generated", 
+                "Total images converted"
+            ]
+            return any(msg in record.msg for msg in allowed_messages)
+        return True  # Allow all other levels (WARNING, ERROR, etc.)
+
 class Stattic:
     def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None, site_url=None, assets_dir=None, blog_slug='blog'):
         self.content_dir = content_dir
@@ -445,18 +459,21 @@ class Stattic:
         logger = logging.getLogger('stattic')
         logger.setLevel(logging.DEBUG)
 
+        # File handler (Logs everything)
         fh = logging.FileHandler(log_file)
         fh.setLevel(logging.DEBUG)
 
+        # Console handler (Logs only selected INFO, WARNING, ERROR, CRITICAL)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
+        ch.addFilter(InfoFilter())
 
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         fh.setFormatter(formatter)
         ch.setFormatter(formatter)
 
-        logger.addHandler(fh)
-        logger.addHandler(ch)
+        logger.addHandler(fh)  # File logging (all messages)
+        logger.addHandler(ch)  # Console logging (filtered INFO + WARNINGS & above)
 
         logger.info(f"Logging initialized. Logs stored at {log_file}")
 
