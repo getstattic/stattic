@@ -76,7 +76,7 @@ To generate the static site, run:
 python3 stattic.py
 ```
 
-This command processes the content in the `content/` directory, applies the templates from `templates/`, and outputs the static site to the `output/` directory.
+This command processes the content in the `content/` directory, applies the templates from `templates/`, and outputs the static site into the `output/` directory.
 
 ### **Command-Line Arguments**
 
@@ -121,18 +121,21 @@ This command processes the content in the `content/` directory, applies the temp
     ```
 
 - `--minify`: Minify CSS and JS into single files.
-    
     ```
     python3 stattic.py --minify
-    ```    
+    ```
+
+- `--blog-slug`: Specify the URL slug that is used for your post archive and in single post URLs.
+    ```
+    python3 stattic.py --blog-slug "blog"
+    ```
 
 - `--watch`: _(Not Implemented)_ Enable watch mode to automatically rebuild on file changes.
-    
     ```
     python3 stattic.py --watch
-    ```    
+    ```
 
-**Note:** The `--watch` feature is defined but not yet implemented in the current version of `stattic.py`.
+**Note:** The `--watch` feature is defined but not yet implemented in the current version of **Stattic**.
 
 ### **Example: Building the Site with Custom Fonts and Minification**
 ```
@@ -145,17 +148,16 @@ python3 stattic.py --output ~/Documents/demo --posts-per-page 10 --sort-by title
 
 ### **Directory Structure**
 
+- `assets/`: Contains CSS, JS, and font files to be copied to the `output/assets/` directory.
 - `content/`
-
     - `posts/`: Place all blog posts here as Markdown (`.md`) files.
     - `pages/`: Place all static pages (e.g., About, Contact) here as Markdown (`.md`) files.
     - `categories.yml`: Define categories for your posts.
     - `tags.yml`: Define tags for your posts.
     - `authors.yml`: Define authors and their details.
-- `templates/`: Contains Jinja2 templates (`base.html`, `post.html`, `index.html`, etc.).
-- `assets/`: Contains CSS, JS, and font files to be copied to the `output/assets/` directory.
-- `output/`: The generated static site will be placed here.
 - `logs/`: Build logs are stored here.
+- `output/`: The generated static site will be placed here.
+- `templates/`: Contains Jinja2 templates (`base.html`, `post.html`, `index.html`, etc.).
 
 ### **Markdown Files with Frontmatter**
 
@@ -251,7 +253,7 @@ Stattic automatically handles image optimization by:
 
 **Example:**
 
-```    
+```
 ![Logo](https://example.com/images/logo.png)
 ```
 
@@ -316,7 +318,7 @@ Stattic provides detailed logs of the build process, including performance metri
 2024-09-27 12:34:59 - INFO - Site build completed successfully in 3.00 seconds.
 ```
 
-- **Console Output**: Also displays INFO level logs for real-time feedback.
+- **Console Output**: Also displays WARNING+ level logs for real-time feedback.
 * * *
 
 ## Contributing
@@ -333,7 +335,7 @@ cd stattic
 2. **Create a New Branch:**
 
 ```
-git checkout -b feature-branch
+git checkout -b feature/feature-branch-name
 ```
 
 3. **Make Your Changes**: Implement your features or fixes.
@@ -347,7 +349,7 @@ git commit -m "Add feature XYZ"
 5. **Push to Your Fork:**
 
 ```
-git push origin feature-branch
+git push origin feature/feature-branch-name
 ```
 
 6. **Submit a Pull Request**: Open a pull request detailing your changes.
@@ -357,20 +359,3 @@ git push origin feature-branch
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](/LICENSE) file for details.
-
-* * *
-
-## Additional Notes (01/06/2025)
-
-1. **Watch Mode Implementation:**
-
-    - Currently, the `--watch` flag is defined but not implemented. Future updates will include automatic rebuilding when content or templates change.
-2. **Directory Structure Consistency:**
-
-    - Maintain a consistent directory structure to ensure relative paths are correctly calculated and assets are properly linked.
-3. **Error Handling:**
-
-    - Review the logs in the `logs/` directory if you encounter any issues during the build process.
-4. **Extending Features:**
-
-    - Consider adding features like search functionality, custom taxonomies, or integration with third-party services as needed.
