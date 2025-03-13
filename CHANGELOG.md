@@ -2,7 +2,15 @@
 
 ## 0.1.0
 
-
+* [📦 NEW: Added pagination to the core theme's index and category template](https://github.com/getstattic/stattic/commit/c5fec466975c6fbab48ec1dc859512dee05a20ca)
+* [👌 IMPROVE: Updated index page to collect all metadata found in the front matter](https://github.com/getstattic/stattic/commit/2d4c9ac084fb3915924af79b9284d93c9a0e8cd2)
+* [👌 IMPROVE: Updated the 'time taken' in the log file to show 6 decimal places for more accurate readings](https://github.com/getstattic/stattic/commit/6720a111c3c4e8e6fb4a60c5d13cced62d92b486)
+* [👌 IMPROVE: Updated template files to remove '.html' from hrefs](https://github.com/getstattic/stattic/commit/47596091773809e8a22f46c4ce535b67175db424)
+* [👌 IMPROVE: Updated concurrency-based build approach to increase speed](https://github.com/getstattic/stattic/commit/5638f49c8ca4dabfa61fb807c1119d7afc419fb6)
+* [👌 IMPROVE: Updated jinja2 version to >= 3.1.6](https://github.com/getstattic/stattic/commit/266bdf73d90dda309701e5ca4c1a2a633be7f389)
+* [👌 IMPROVE: Updated .skip-link style to improve A11Y score in page speed insights report](https://github.com/getstattic/stattic/commit/d25854f9ba51f2cbf1d99dd1fec454c0872cdf8e)
+* [👌 IMPROVE: Updated blog slug to be customizable with --blog-slug](https://github.com/getstattic/stattic/commit/f0e8151d5936d3a92e63aa152eb215fbaf8347e4)
+* [👌 IMPROVE: Updated what content is output in the terminal logging](https://github.com/getstattic/stattic/commit/ce1bb015304eadba946f7973e6712e21935d86d1)
 
 ## 0.0.8
 
