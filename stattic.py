@@ -25,12 +25,12 @@ GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{w
 # Global variable for FileProcessor instance in each worker process
 file_processor = None
 
-def initializer(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir):
+def initializer(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug):
     global file_processor
-    file_processor = FileProcessor(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir)
+    file_processor = FileProcessor(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug)
 
 class FileProcessor:
-    def __init__(self, templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir):
+    def __init__(self, templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug):
         self.templates_dir = templates_dir
         self.output_dir = output_dir
         self.images_dir = images_dir
@@ -40,6 +40,7 @@ class FileProcessor:
         self.pages = pages
         self.site_url = site_url
         self.content_dir = content_dir
+        self.blog_slug = blog_slug
         self.env = Environment(loader=FileSystemLoader(templates_dir))
         self.markdown_parser = self.create_markdown_parser()
 
@@ -272,7 +273,7 @@ class FileProcessor:
                 elif isinstance(category, str):
                     post_categories.append(category)
             else:
-                print(f"Invalid category ID: {cat_id}")  # Use print since no logger
+                print(f"Invalid category ID: {cat_id}")
 
         post_tags = []
         for tag_id in metadata.get('tags', []):
@@ -335,7 +336,7 @@ class FileProcessor:
             if is_page:
                 output_dir = os.path.join(self.output_dir, slug)
             else:
-                output_dir = os.path.join(self.output_dir, 'blog', slug)
+                output_dir = os.path.join(self.output_dir, self.blog_slug, slug)
 
             # Build the final page or post (writes to index.html)
             self.build_post_or_page(metadata, html_content, slug, output_dir, is_page=is_page)
@@ -345,7 +346,7 @@ class FileProcessor:
                 return {"post_metadata": None, "images_converted": images_converted}
             else:
                 # Prepare metadata for the main index page
-                permalink = f"blog/{slug}/"
+                permalink = f"{self.blog_slug}/{slug}/"
                 post_meta = {
                     'title': metadata.get('title', 'Untitled'),
                     'excerpt': self.markdown_filter(
@@ -368,12 +369,13 @@ class FileProcessor:
         return './' if relative == '.' else relative + '/'
 
 class Stattic:
-    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None, site_url=None, assets_dir=None):
+    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None, site_url=None, assets_dir=None, blog_slug='blog'):
         self.content_dir = content_dir
         self.posts_dir = os.path.join(content_dir, 'posts')
         self.pages_dir = os.path.join(content_dir, 'pages')
         self.templates_dir = templates_dir
         self.output_dir = output_dir
+        self.blog_slug = blog_slug
         self.logger = self.setup_logging()
         self.images_dir = os.path.join(output_dir, 'images')
         self.assets_src_dir = assets_dir or os.path.join(os.path.dirname(__file__), 'assets')
@@ -995,7 +997,8 @@ body {{
                 self.authors,
                 self.pages,
                 self.site_url,
-                self.content_dir
+                self.content_dir,
+                self.blog_slug
             )
         ) as executor:
             # Submit post jobs
@@ -1463,6 +1466,7 @@ if __name__ == "__main__":
     parser.add_argument('--robots', type=str, choices=['public', 'private'], default='public')
     parser.add_argument('--watch', action='store_true')
     parser.add_argument('--minify', action='store_true')
+    parser.add_argument('--blog-slug', type=str, default='blog', help="Custom slug for posts instead of 'blog'")
 
     args = parser.parse_args()
     output_dir = os.path.expanduser(args.output) if args.output.startswith("~/") else args.output
@@ -1476,7 +1480,8 @@ if __name__ == "__main__":
         sort_by=args.sort_by,
         fonts=fonts,
         site_url=args.site_url,
-        assets_dir=args.assets
+        assets_dir=args.assets,
+        blog_slug=args.blog_slug
     )
     generator.build()
     if generator.site_url:
