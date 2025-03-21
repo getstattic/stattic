@@ -374,7 +374,7 @@ class InfoFilter(logging.Filter):
         if record.levelno == logging.INFO:
             allowed_messages = [
                 "Starting build process...",
-                "Site build completed successfully", 
+                "Site build completed", 
                 "Total posts generated", 
                 "Total pages generated", 
                 "Total images converted"
@@ -1064,7 +1064,11 @@ body {{
         return ' '.join(words) + '...'
 
     def calculate_relative_path(self, current_output_dir):
-        """Calculate the relative path from current_output_dir back to self.output_dir."""
+        # If site_url is provided, always return absolute path "/"
+        if self.site_url:
+            return '/'
+
+        # Otherwise, calculate relative paths for local file viewing
         root = os.path.abspath(self.output_dir)
         current = os.path.abspath(current_output_dir)
         relative = os.path.relpath(root, current)
@@ -1452,13 +1456,6 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
         if getattr(args, 'minify', False):
             self.minify_assets()
 
-        build_end_time = time.time()
-        total_time = build_end_time - build_start_time
-        self.logger.info(f"Site build completed successfully in {total_time:.6f} seconds.")
-        self.logger.info(f"Total posts generated: {self.posts_generated}")
-        self.logger.info(f"Total pages generated: {self.pages_generated}")
-        self.logger.info(f"Total images converted to WebP: {self.image_conversion_count}")
-
 def resolve_output_path(output_dir):
     """If the output path starts with "~/", expand it to the user's home directory"""
     if output_dir.startswith("~/"):
@@ -1489,6 +1486,8 @@ if __name__ == "__main__":
     output_dir = os.path.expanduser(args.output) if args.output.startswith("~/") else args.output
     fonts = [font.strip() for font in args.fonts.split(',')] if args.fonts else None
 
+    overall_start_time = time.time()
+
     generator = Stattic(
         content_dir=args.content,
         templates_dir=args.templates,
@@ -1497,12 +1496,22 @@ if __name__ == "__main__":
         sort_by=args.sort_by,
         fonts=fonts,
         site_url=args.site_url,
-        assets_dir=args.assets,
-        blog_slug=args.blog_slug
+        assets_dir=args.assets
     )
+
     generator.build()
+
+    # Generate RSS and sitemap
     if generator.site_url:
         generator.generate_rss_feed(generator.site_url)
         generator.generate_xml_sitemap(generator.site_url)
     else:
-        generator.logger.info("Skipping RSS feed and XML sitemap generation (not in production mode).")
+        generator.logger.info("Skipping RSS feed and XML sitemap (no site_url).")
+
+    # Now do the final timing and totals
+    overall_end_time = time.time()
+    total_time = overall_end_time - overall_start_time
+    generator.logger.info(f"Site build completed in {total_time:.6f} seconds.")
+    generator.logger.info(f"Total posts generated: {generator.posts_generated}")
+    generator.logger.info(f"Total pages generated: {generator.pages_generated}")
+    generator.logger.info(f"Total images converted to WebP: {generator.image_conversion_count}")
