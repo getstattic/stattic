@@ -48,6 +48,8 @@ class FileProcessor:
     def create_markdown_parser(self):
         """Create a Mistune markdown parser with a custom renderer."""
         class CustomRenderer(mistune.HTMLRenderer):
+            def __init__(self):
+                super().__init__(escape=False)
             def block_code(self, code, info=None):
                 escaped_code = mistune.escape(code)
                 return '<pre style="white-space: pre-wrap;"><code>{}</code></pre>'.format(escaped_code)
