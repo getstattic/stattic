@@ -105,4 +105,4 @@ If you're ready to leave behind the heavy lifting of WordPress and try something
 
 Whether you're a developer looking for a clean and customizable solution or a small business owner who just wants a fast and secure website, Stattic will get you there with less hassle.
 
-Ready to build your first Stattic site? Check out the [getting started guide](/blog/command-lind-arguments-for-stattic/) and get started today!
+Ready to build your first Stattic site? Check out the [getting started guide](/blog/command-line-arguments-for-stattic/) and get started today!
