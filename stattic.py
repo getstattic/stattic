@@ -82,7 +82,7 @@ class FileProcessor:
             return None
         try:
             if url.startswith('http'):
-                response = session.get(url)
+                response = self.session.get(url)
                 response.raise_for_status()
                 image_name = os.path.basename(url)
                 image_path = os.path.join(output_dir, image_name)
@@ -387,6 +387,7 @@ class InfoFilter(logging.Filter):
 
 class Stattic:
     def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None, site_url=None, assets_dir=None, blog_slug='blog'):
+        self.session = requests.Session()
         self.content_dir = content_dir
         self.posts_dir = os.path.join(content_dir, 'posts')
         self.pages_dir = os.path.join(content_dir, 'pages')
@@ -635,7 +636,7 @@ class Stattic:
                     return None
 
             # If it's not a local path, treat it as an external URL
-            response = session.get(url)
+            response = self.session.get(url)
             response.raise_for_status()  # Ensure the request was successful
 
             # Extract the image file name
@@ -672,8 +673,6 @@ class Stattic:
             # List of font weights to download
             font_weights = [300, 400, 500, 600, 700]
 
-            global session
-
             for font in self.fonts:
                 font_cleaned = font.strip().replace(' ', '+')  # Replace spaces with +
                 font_family_names.append(font.strip())  # Store the clean name for font-family usage
@@ -691,7 +690,7 @@ class Stattic:
                         self.logger.info(f"Font {font} ({weight}) already exists in woff2. Skipping download.")
                     else:
                         # Download the CSS from Google Fonts for each weight
-                        response = session.get(google_font_url)
+                        response = self.session.get(google_font_url)
                         if response.status_code == 200:
                             css_data = response.text
 
@@ -700,7 +699,7 @@ class Stattic:
 
                             for font_url, format_type in font_urls:
                                 # Download the actual font file
-                                font_file_response = session.get(font_url)
+                                font_file_response = self.session.get(font_url)
                                 if font_file_response.status_code == 200:
                                     # Save woff2 if it's available
                                     with open(font_output_file_woff2, 'wb') as f:
