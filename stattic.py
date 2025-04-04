@@ -1,6 +1,7 @@
 import os
 import shutil
 import markdown
+import hashlib
 import yaml
 import argparse
 import logging
@@ -28,10 +29,10 @@ file_processor = None
 def initializer(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug):
     global file_processor
     session = requests.Session()
-    file_processor = FileProcessor(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug)
+    file_processor = FileProcessor(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=session)
 
 class FileProcessor:
-    def __init__(self, templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug):
+    def __init__(self, templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=None):
         self.templates_dir = templates_dir
         self.output_dir = output_dir
         self.images_dir = images_dir
@@ -42,6 +43,9 @@ class FileProcessor:
         self.site_url = site_url
         self.content_dir = content_dir
         self.blog_slug = blog_slug
+        self.session = session or requests.Session()
+        self.logger = logging.getLogger('FileProcessor')
+
         self.env = Environment(loader=FileSystemLoader(templates_dir))
         self.markdown_parser = self.create_markdown_parser()
 
@@ -127,26 +131,21 @@ class FileProcessor:
         Download/copy them to images_dir, convert to .webp, then update references in content.
         Return (updated_content, images_converted_count).
         """
+        self.logger.info("FileProcessor.process_images is running")
+
         # Markdown images: ![alt](url)
         markdown_image_urls = re.findall(r'!\[.*?\]\((.*?)\)', content)
-        # HTML <img src="...">
         html_image_urls = re.findall(r'<img\s+[^>]*src="([^"]+)"', content)
-        # <a href="..." if it ends with common image extension
         href_urls = re.findall(r'<a\s+[^>]*href="([^"]+)"', content)
-
-        # Collect any images in srcset="..."
         srcset_urls = re.findall(r'srcset="([^"]+)"', content)
         all_srcset_urls = []
         for s in srcset_urls:
             entries = s.split(',')
             for e in entries:
-                # each e could be "image.jpg 1x", so we want just "image.jpg"
                 possible_url = e.strip().split(' ')[0]
                 all_srcset_urls.append(possible_url)
 
-        # Combine everything into a set
         image_urls = set(markdown_image_urls + html_image_urls + href_urls + all_srcset_urls)
-
         local_image_paths = {}
         images_converted = 0
 
@@ -159,7 +158,7 @@ class FileProcessor:
             webp_image_path = os.path.join(self.images_dir, webp_filename)
 
             if os.path.exists(webp_image_path):
-                local_image_paths[url] = f"images/{os.path.basename(webp_image_path)}"
+                local_image_paths[url] = f"/images/{webp_filename}"
                 continue
 
             new_image_path = None
@@ -181,16 +180,19 @@ class FileProcessor:
                 converted_path = self.convert_image_to_webp(new_image_path)
                 if converted_path:
                     images_converted += 1
-                    local_image_paths[url] = f"images/{os.path.basename(converted_path)}"
+                    local_image_paths[url] = f"/images/{os.path.basename(converted_path)}"
 
-        # Replace src="..." and href="..."
+        # Replace src, href
         for original_url, webp_rel_path in local_image_paths.items():
-            # Replace src="original" => src="webp"
             content = content.replace(f'src="{original_url}"', f'src="{webp_rel_path}"')
-            # Also if <a href="original"> => <a href="webp">
             content = content.replace(f'href="{original_url}"', f'href="{webp_rel_path}"')
 
-        # Now replace srcset references with new .webp paths
+        # Replace markdown images
+        for original_url, webp_rel_path in local_image_paths.items():
+            pattern = r'(!\[.*?\]\()' + re.escape(original_url) + r'(\))'
+            content = re.sub(pattern, r'\1' + webp_rel_path + r'\2', content)
+
+        # Replace srcset
         def replace_srcset(match):
             srcset_value = match.group(1)
             entries = srcset_value.split(',')
@@ -263,7 +265,11 @@ class FileProcessor:
         author_name = self.get_author_name(metadata.get('author', 'Unknown'))
         formatted_date = self.format_date(metadata.get('date'))
         relative_path = self.calculate_relative_path(output_dir)
-        template_name = 'page.html' if is_page else 'post.html'
+        template_part = metadata.get('template')
+        if template_part:
+            template_name = f"post-{template_part}.html" if not is_page else f"page-{template_part}.html"
+        else:
+            template_name = 'page.html' if is_page else 'post.html'
         template = self.env.get_template(template_name)
 
         # Compute categories and tags, similar to Stattic.build_post_or_page
@@ -324,15 +330,14 @@ class FileProcessor:
         """
         try:
             # Parse frontmatter and do initial processing
-            metadata, markdown_content, images_converted = self.parse_markdown_with_metadata(file_path)
-
+            metadata, updated_markdown, images_converted = self.parse_markdown_with_metadata(file_path)
             # If it's a draft post, skip
             if not is_page and metadata.get('draft', False):
                 print(f"Skipping draft: {file_path}")
                 return {"post_metadata": None, "images_converted": 0}
 
             # Convert the content to HTML
-            html_content = self.markdown_filter(markdown_content)
+            html_content = self.markdown_filter(updated_markdown)
 
             # Compute a slug
             slug = metadata.get('custom_url', os.path.basename(file_path).replace('.md', ''))
@@ -353,7 +358,7 @@ class FileProcessor:
                 post_meta = {
                     'title': metadata.get('title', 'Untitled'),
                     'excerpt': self.markdown_filter(
-                        metadata.get('excerpt', self.generate_excerpt(markdown_content))
+                        metadata.get('excerpt', self.generate_excerpt(updated_markdown))
                     ),
                     'permalink': permalink,
                     'date': self.format_date(metadata.get('date')),
@@ -426,6 +431,21 @@ class Stattic:
 
         # Ensure images directory exists
         os.makedirs(self.images_dir, exist_ok=True)
+
+        # Add file processor
+        self.file_processor = FileProcessor(
+            self.templates_dir,
+            self.output_dir,
+            self.images_dir,
+            self.categories,
+            self.tags,
+            self.authors,
+            self.pages,
+            self.site_url,
+            self.content_dir,
+            self.blog_slug,
+            session=self.session
+        )
 
         # Ensure pages are loaded before generating posts or pages
         self.load_pages()
@@ -582,7 +602,7 @@ class Stattic:
             page_files = self.get_markdown_files(self.pages_dir)
             for page_file in page_files:
                 filepath = os.path.join(self.pages_dir, page_file)
-                metadata, _ = self.parse_markdown_with_metadata(filepath)
+                metadata, _, _ = self.file_processor.parse_markdown_with_metadata(filepath)
 
                 title = metadata.get('title', 'Untitled')
                 if isinstance(title, dict):
@@ -613,7 +633,7 @@ class Stattic:
         """Download an image and save it locally, or check if it's a local image."""
         try:
             # Only process URLs with common image file extensions
-            if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
+            if not re.search(r'\.(jpe?g|png|gif|webp|bmp|tiff)(\?.*)?$', url, re.IGNORECASE):
                 #self.logger.warning(f"Skipping non-image URL: {url}")
                 return None
 
@@ -787,7 +807,7 @@ body {{
         html_image_urls = re.findall(r'<img\s+[^>]*src="([^"]+)"', content)
         href_urls = re.findall(r'<a\s+[^>]*href="([^"]+)"', content)
         
-        # Extract srcset image URLs, multiple URLs per srcset
+        # Extract srcset image URLs (multiple URLs per srcset)
         srcset_urls = re.findall(r'srcset="([^"]+)"', content)
         all_srcset_urls = []
         for srcset in srcset_urls:
@@ -802,7 +822,6 @@ body {{
         for url in image_urls:
             # Ensure the URL points to an image file
             if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
-                #self.logger.warning(f"Skipping non-image URL: {url}")
                 continue
 
             self.logger.info(f"Processing image: {url}")
@@ -812,41 +831,62 @@ body {{
             # Check if the WebP version already exists
             if os.path.exists(webp_image_path):
                 self.logger.info(f"Using existing WebP image: {webp_image_path}")
-                local_image_paths[url] = f"images/{os.path.basename(webp_image_path)}"
+                local_image_paths[url] = f"/images/{os.path.basename(webp_image_path)}"
             else:
                 # Download and convert the image if the WebP version does not exist
                 image_path = self.download_image(url, self.images_dir)
                 if image_path:
                     webp_path = self.convert_image_to_webp(image_path)
                     if webp_path:
-                        local_image_paths[url] = f"images/{os.path.basename(webp_path)}"
+                        local_image_paths[url] = f"/images/{os.path.basename(webp_path)}"
 
-        # Replace `href` and `src` attributes directly
+        # Replace HTML attributes (href, src) that directly reference the images
         for url, webp_path in local_image_paths.items():
             content = content.replace(f'href="{url}"', f'href="{webp_path}"')
             content = content.replace(f'src="{url}"', f'src="{webp_path}"')
 
-        # Replace `srcset` attributes with all processed image URLs
+        # Replace srcset attributes
         def replace_srcset(match):
             srcset_value = match.group(1)
             srcset_entries = srcset_value.split(',')
 
-            # Prepare to replace each URL in the srcset
             new_srcset_entries = []
             for entry in srcset_entries:
                 parts = entry.strip().split(' ')
                 url_part = parts[0]
-                # Check if the URL was processed and exists in local_image_paths
                 if url_part in local_image_paths:
                     parts[0] = local_image_paths[url_part]
                 new_srcset_entries.append(' '.join(parts))
-
-            # Reconstruct the srcset attribute with all updated URLs
             return 'srcset="' + ', '.join(new_srcset_entries) + '"'
-
-        # Use regex to find srcset attributes and replace them using the function
+        
         content = re.sub(r'srcset="([^"]+)"', replace_srcset, content)
 
+        # Replace Markdown image syntax: ![](url)
+        def replace_markdown_image(match):
+            prefix = match.group(1)  # e.g. "![alt text]("
+            url = match.group(2)     # the URL inside the parentheses
+            suffix = match.group(3)  # the closing ")"
+            if url in local_image_paths:
+                return prefix + local_image_paths[url] + suffix
+            return match.group(0)
+
+        content = re.sub(r'(!\[.*?\]\()([^)]*)(\))', replace_markdown_image, content)
+
+        # Replace Markdown link syntax that have image URLs: [text](url)
+        def replace_markdown_link(match):
+            prefix = match.group(1)  # e.g. "[text]("
+            url = match.group(2)     # the URL inside the parentheses
+            suffix = match.group(3)  # the closing ")"
+            if url in local_image_paths:
+                return prefix + local_image_paths[url] + suffix
+            return match.group(0)
+
+        content = re.sub(
+            r'(\[.*?\]\()([^)]*\.(?:jpg|jpeg|png|gif|webp|bmp|tiff)(?:\?.*?)?)(\))',
+            replace_markdown_link,
+            content
+        )
+        self.logger.info("Stattic.process_images is running")
         return content
 
     def parse_date(self, date_str):
@@ -1054,6 +1094,39 @@ body {{
 
         # Finally
         self.posts_generated = len(self.posts)
+
+    def build_blog_page(self):
+        blog_page_output = os.path.join(self.output_dir, self.blog_slug)
+        os.makedirs(blog_page_output, exist_ok=True)
+
+        sorted_posts = sorted(
+            self.posts,
+            key=lambda p: self.parse_date(p.get('date', '')),
+            reverse=True
+        )
+
+        total_posts = len(sorted_posts)
+        posts_per_page = self.posts_per_page
+        total_pages = (total_posts + posts_per_page - 1) // posts_per_page
+        current_page = 1
+        page_posts = sorted_posts[:posts_per_page]  # First page posts
+        pagination_links = self.get_pagination_links(current_page, total_pages)
+
+        rendered_html = self.render_template(
+            'page-blog.html',
+            posts=page_posts,
+            pages=self.pages,
+            page={'title': 'Blog'},
+            relative_path=self.calculate_relative_path(blog_page_output),
+            total_pages=total_pages,
+            current_page=current_page,
+            page_numbers=pagination_links
+        )
+
+        with open(os.path.join(blog_page_output, 'index.html'), 'w') as f:
+            f.write(rendered_html)
+
+        self.logger.info(f"Generated blog archive page at /{self.blog_slug}/index.html")
 
     def convert_markdown_to_html(self, markdown_content):
         """Convert Markdown content to HTML."""
@@ -1446,6 +1519,9 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
 
         # Build posts and pages
         self.build_posts_and_pages()
+
+        # Build the blog page
+        self.build_blog_page()
 
         # Build additional pages (index, static pages)
         self.build_index_page()
