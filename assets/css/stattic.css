@@ -18,19 +18,18 @@
     padding: 16px 24px;
     text-decoration: none;
     z-index: 100;
-    min-width: 48px;     /* Ensures the width is at least 48px */
-    min-height: 48px;    /* Ensures the height is at least 48px */
-}
-
-.skip-link:focus,
-.skip-link:hover {
-    top: 0; /* brings link into view */
-    padding: 16px 24px;  /* larger padding for touch targets */
     min-width: 48px;
     min-height: 48px;
 }
 
-/* Existing Classes */
+.skip-link:focus,
+.skip-link:hover {
+    top: 0;
+    padding: 16px 24px;
+    min-width: 48px;
+    min-height: 48px;
+}
+
 .bg-primary {
     background-color: var(--primary-color);
 }
@@ -67,7 +66,6 @@
     border-color: var(--border-color);
 }
 
-/* Blanket styles for 20 common HTML elements in WordPress content */
 .stattic-content p {
     margin-bottom: 1.5rem;
     color: var(--text-color);
@@ -123,7 +121,7 @@
 
 .stattic-content ul, 
 .stattic-content ol {
-    margin-left: 2rem; /* Indentation */
+    margin-left: 2rem;
     margin-bottom: 1.5rem;
     color: var(--text-color);
 }
@@ -255,4 +253,3 @@
 .stattic-content ol ol {
     margin-left: 1.5rem;
 }
-
