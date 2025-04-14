@@ -2,12 +2,12 @@
 
 {% block content %}
 <main class="container max-w-2xl m-auto py-10 px-4" id="main-content">
-    {% if page.featured_image %}
-    <img src="{{ page.featured_image }}" alt="Featured Image for {{ page.title }}" class="featured-image" />
-    {% endif %}
-    <h1 class="text-6xl font-bold mb-8 pb-8 text-links quicksand-700 border-b border-primary">{{ title }}</h1>
-    <div class="stattic-content prose dark:prose-dark">
+    <article class="prose dark:prose-dark max-w-none stattic-content">
+        {% if page.featured_image %}
+        <img src="{{ page.featured_image }}" alt="Featured Image for {{ page.title }}" class="featured-image" />
+        {% endif %}
+        <h1 class="text-6xl font-bold mb-8 pb-8 text-links quicksand-700 border-b border-primary">{{ title }}</h1>
         {{ content | safe }}
-    </div>
+    </article>
 </main>
 {% endblock %}

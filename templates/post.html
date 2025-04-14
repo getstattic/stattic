@@ -2,7 +2,7 @@
 
 {% block content %}
 <main class="container max-w-2xl m-auto py-10 px-4" id="main-content">
-    <article class="prose dark:prose-dark max-w-none">
+    <article class="prose dark:prose-dark max-w-none stattic-content">
         {% if page.featured_image %}
             <img src="{{ page.featured_image }}" alt="Featured Image for {{ page.title }}" class="featured-image" />
         {% endif %}
@@ -11,9 +11,7 @@
         {% if featured_image %}
         <img src="{{ featured_image }}" alt="{{ title }}" class="rounded-lg my-4 w-full h-auto">
         {% endif %}
-        <div class="stattic-content mb-12">
-            {{ content | safe }}
-        </div>
+        {{ content | safe }}
     </article>
 </main>
 {% endblock %}
