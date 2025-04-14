@@ -682,67 +682,73 @@ class Stattic:
 
             # CSS content to store the @font-face rules
             css_content = ""
-            font_family_names = []
 
-            # Create the fonts and CSS directories if they don't exist
+            # Prepare output directories
             fonts_output_path = os.path.join(self.assets_output_dir, 'fonts')
             fonts_css_path    = os.path.join(self.assets_output_dir, 'css', 'fonts.css')
             os.makedirs(fonts_output_path, exist_ok=True)
             os.makedirs(os.path.dirname(fonts_css_path), exist_ok=True)
 
-            # List of font weights to download
-            font_weights = [300, 400, 500, 600, 700]
+            # Use the full range of standard Google Font weights
+            font_weights = [100, 200, 300, 400, 500, 600, 700, 800, 900]
 
             for font in self.fonts:
-                # For Google API URL
+                # For the Google Fonts API URL
                 font_cleaned = font.strip().replace(' ', '+')
                 # For local filenames
                 font_slug    = font.strip().lower().replace(' ', '-')
-                font_family_names.append(font.strip())
 
                 for weight in font_weights:
-                    google_font_url        = GOOGLE_FONTS_API.format(font_name=font_cleaned, weights=weight)
-                    font_file_name_woff2   = f"{font_slug}-{weight}.woff2"
-                    font_file_name_ttf     = f"{font_slug}-{weight}.ttf"
-                    font_output_file_woff2 = os.path.join(fonts_output_path, font_file_name_woff2)
-                    font_output_file_ttf   = os.path.join(fonts_output_path, font_file_name_ttf)
+                    # Build the CSS2 API URL requesting just this weight
+                    google_font_url = GOOGLE_FONTS_API.format(
+                        font_name=font_cleaned,
+                        weights=weight
+                    )
+                    # Fetch the CSS
+                    response = self.session.get(google_font_url)
+                    if response.status_code != 200:
+                        # weight not supported by this font → skip quietly
+                        continue
 
-                    # Skip if already downloaded
-                    if os.path.exists(font_output_file_woff2) and os.path.getsize(font_output_file_woff2) > 0:
-                        self.logger.info(f"Font {font} ({weight}) already exists. Skipping.")
-                    else:
-                        # Fetch the Google Fonts CSS for this weight
-                        response = self.session.get(google_font_url)
-                        if response.status_code == 200:
-                            css_data = response.text
-                            # Extract actual font file URLs
-                            font_urls = re.findall(r'url\((.*?)\) format\((.*?)\);', css_data)
-                            for font_url, _ in font_urls:
-                                font_file_response = self.session.get(font_url)
-                                if font_file_response.status_code == 200:
-                                    with open(font_output_file_woff2, 'wb') as f:
-                                        f.write(font_file_response.content)
-                                    self.logger.info(f"Downloaded {font} ({weight}) woff2 from {font_url}")
-                                else:
-                                    self.logger.error(f"Failed to download font file from {font_url}")
-                        else:
-                            self.logger.error(f"Failed to fetch CSS for {font} weight {weight}")
+                    css_data = response.text
+                    # Extract any actual font file URLs
+                    font_urls = re.findall(r'url\((.*?)\) format\((.*?)\);', css_data)
+                    if not font_urls:
+                        # no files in the CSS → skip
+                        continue
 
-                    # Append the @font-face rule
+                    # Define our output filenames
+                    woff2_name = f"{font_slug}-{weight}.woff2"
+                    ttf_name   = f"{font_slug}-{weight}.ttf"
+                    woff2_path = os.path.join(fonts_output_path, woff2_name)
+                    ttf_path   = os.path.join(fonts_output_path, ttf_name)
+
+                    # Only download if we don't already have it
+                    if not (os.path.exists(woff2_path) and os.path.getsize(woff2_path) > 0):
+                        # Download the first available URL (typically woff2)
+                        for font_url, _ in font_urls:
+                            resp = self.session.get(font_url)
+                            if resp.status_code == 200:
+                                with open(woff2_path, 'wb') as f:
+                                    f.write(resp.content)
+                                self.logger.info(f"Downloaded {font} weight {weight} → {woff2_name}")
+                                break
+
+                    # Append the @font-face rule (woff2 + ttf fallback)
                     css_content += f"""
 @font-face {{
     font-family: '{font.strip()}';
     font-style: normal;
     font-weight: {weight};
     font-display: swap;
-    src: url('../fonts/{font_file_name_woff2}') format('woff2'),
-         url('../fonts/{font_file_name_ttf}') format('truetype');
+    src: url('../fonts/{woff2_name}') format('woff2'),
+         url('../fonts/{ttf_name}') format('truetype');
 }}
 """
 
-            # After all fonts are processed, set site-wide usage:
+            # After generating all @font-face rules, set site-wide usage:
             #  - first font → body
-            #  - second font → headings (if present)
+            #  - second font (if any) → headings
             css_content += "\n"
             if self.fonts:
                 body_font = self.fonts[0].strip()
@@ -759,7 +765,7 @@ h1, h2, h3, h4, h5, h6 {{
 }}
 """
 
-            # Write everything out
+            # Write out the final CSS
             with open(fonts_css_path, 'w') as f:
                 f.write(css_content)
 
