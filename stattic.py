@@ -694,14 +694,15 @@ class Stattic:
             font_weights = [300, 400, 500, 600, 700]
 
             for font in self.fonts:
-                font_cleaned = font.strip().replace(' ', '+')  # Replace spaces with +
+                font_cleaned = font.strip().replace(' ', '+')  # for Google API URL
+                font_slug = font.strip().lower().replace(' ', '-') # slugify for filenames
                 font_family_names.append(font.strip())  # Store the clean name for font-family usage
 
                 # Explicitly request each weight to ensure all are downloaded
                 for weight in font_weights:
                     google_font_url = GOOGLE_FONTS_API.format(font_name=font_cleaned, weights=weight)
-                    font_file_name_woff2 = f"{font.strip().lower()}-{weight}.woff2"  # woff2 format
-                    font_file_name_ttf = f"{font.strip().lower()}-{weight}.ttf"  # ttf format
+                    font_file_name_woff2 = f"{font_slug}-{weight}.woff2"
+                    font_file_name_ttf   = f"{font_slug}-{weight}.ttf"
                     font_output_file_woff2 = os.path.join(fonts_output_path, font_file_name_woff2)
                     font_output_file_ttf = os.path.join(fonts_output_path, font_file_name_ttf)
 
