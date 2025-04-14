@@ -1,6 +1,8 @@
 node_modules/*
 my-site/*
 content/*
+output/*
+templates/*
 logs/*
 autoStattic.py
 __pycache__
