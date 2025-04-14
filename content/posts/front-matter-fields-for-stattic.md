@@ -7,7 +7,9 @@ categories:
   - 1
 ---
 
-### 1. **title**
+Below is a comprehensive list of all of the front matter fields that are used by Stattic.
+
+### 1. title
 
 - **Description**: The title of your post or page.
 - **Type**: String
@@ -16,7 +18,7 @@ categories:
 
     `title: "Your Post Title"`
 
-### 2. **date**
+### 2. date
 
 - **Description**: The publication date of your post or page.
 - **Type**: String (formatted as `YYYY-MM-DDTHH:MM:SS`)
@@ -25,7 +27,7 @@ categories:
 
     `date: "2023-10-15T10:00:00"`
 
-### 3. **author**
+### 3. author
 
 - **Description**: The ID of the author of the post or page.
 - **Type**: Integer or String (should correspond to an ID in `authors.yml`)
@@ -34,7 +36,7 @@ categories:
 
     `author: 1  # Assuming '1' corresponds to an author in authors.yml`
 
-### 4. **categories**
+### 4. categories
 
 - **Description**: A list of category IDs that the post belongs to.
 - **Type**: List of Integers (IDs corresponding to entries in `categories.yml`)
@@ -47,7 +49,7 @@ categories:
       - 5
  ```
 
-### 5. **tags**
+### 5. tags
 
 - **Description**: A list of tag IDs associated with the post.
 - **Type**: List of Integers (IDs corresponding to entries in `tags.yml`)
@@ -60,7 +62,7 @@ categories:
       - 7
 ```
 
-### 6. **draft**
+### 6. draft
 
 - **Description**: Indicates whether the post is a draft.
 - **Type**: Boolean (`true` or `false`)
@@ -69,7 +71,7 @@ categories:
 
     `draft: true  # The post will be skipped during the build process`
 
-### 7. **template**
+### 7. tempalte
 
 - **Description**: Specifies a custom template to use for rendering.
 - **Type**: String (the name of the template part)
@@ -78,7 +80,7 @@ categories:
 
     `template: "custom"  # Will use 'post-custom.html' or 'page-custom.html'`
 
-### 8. **custom_url**
+### 8. custom_url
 
 - **Description**: Custom URL slug for the post or page.
 - **Type**: String
@@ -87,7 +89,7 @@ categories:
 
     `custom_url: "my-custom-path"`
 
-### 9. **order**
+### 9. order
 
 - **Description**: Determines the order of pages in navigation menus.
 - **Type**: Integer (lower numbers appear first)
@@ -96,7 +98,7 @@ categories:
 
     `order: 1  # This page will appear before pages with higher 'order' values`
 
-### 10. **featured_image**
+### 10. featured_image
 
 - **Description**: URL of the featured image for the post or page.
 - **Type**: String (URL)
@@ -105,7 +107,7 @@ categories:
 
     `featured_image: "https://example.com/images/featured.jpg"`
 
-### 11. **seo_title**
+### 11. seo_title
 
 - **Description**: Custom title for SEO purposes.
 - **Type**: String
@@ -114,7 +116,7 @@ categories:
 
     `seo_title: "Optimized SEO Title for Search Engines"`
 
-### 12. **keywords**
+### 12. keywords
 
 - **Description**: SEO keywords for the post or page.
 - **Type**: String (comma-separated)
@@ -123,7 +125,7 @@ categories:
 
     `keywords: "keyword1, keyword2, keyword3"`
 
-### 13. **description**
+### 13. description
 
 - **Description**: SEO description for the post or page.
 - **Type**: String
@@ -132,7 +134,7 @@ categories:
 
     `description: "A brief description of the content for SEO purposes."`
 
-### 14. **lang**
+### 14. lang
 
 - **Description**: Language code for the content.
 - **Type**: String (e.g., `'en'`, `'fr'`, `'es'`)
@@ -141,7 +143,7 @@ categories:
 
     `lang: "en"`
 
-### 15. **excerpt**
+### 15. excerpt
 
 - **Description**: Custom excerpt or summary of the post.
 - **Type**: String (supports Markdown)
