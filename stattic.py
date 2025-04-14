@@ -680,13 +680,13 @@ class Stattic:
             if not self.fonts:
                 self.fonts = ['Quicksand']
 
-            # CSS content to store the @font-face rules and custom class names
+            # CSS content to store the @font-face rules
             css_content = ""
             font_family_names = []
 
             # Create the fonts and CSS directories if they don't exist
             fonts_output_path = os.path.join(self.assets_output_dir, 'fonts')
-            fonts_css_path = os.path.join(self.assets_output_dir, 'css', 'fonts.css')
+            fonts_css_path    = os.path.join(self.assets_output_dir, 'css', 'fonts.css')
             os.makedirs(fonts_output_path, exist_ok=True)
             os.makedirs(os.path.dirname(fonts_css_path), exist_ok=True)
 
@@ -694,64 +694,72 @@ class Stattic:
             font_weights = [300, 400, 500, 600, 700]
 
             for font in self.fonts:
-                font_cleaned = font.strip().replace(' ', '+')  # for Google API URL
-                font_slug = font.strip().lower().replace(' ', '-') # slugify for filenames
-                font_family_names.append(font.strip())  # Store the clean name for font-family usage
+                # For Google API URL
+                font_cleaned = font.strip().replace(' ', '+')
+                # For local filenames
+                font_slug    = font.strip().lower().replace(' ', '-')
+                font_family_names.append(font.strip())
 
-                # Explicitly request each weight to ensure all are downloaded
                 for weight in font_weights:
-                    google_font_url = GOOGLE_FONTS_API.format(font_name=font_cleaned, weights=weight)
-                    font_file_name_woff2 = f"{font_slug}-{weight}.woff2"
-                    font_file_name_ttf   = f"{font_slug}-{weight}.ttf"
+                    google_font_url        = GOOGLE_FONTS_API.format(font_name=font_cleaned, weights=weight)
+                    font_file_name_woff2   = f"{font_slug}-{weight}.woff2"
+                    font_file_name_ttf     = f"{font_slug}-{weight}.ttf"
                     font_output_file_woff2 = os.path.join(fonts_output_path, font_file_name_woff2)
-                    font_output_file_ttf = os.path.join(fonts_output_path, font_file_name_ttf)
+                    font_output_file_ttf   = os.path.join(fonts_output_path, font_file_name_ttf)
 
-                    # Check if the font file already exists for woff2 format
+                    # Skip if already downloaded
                     if os.path.exists(font_output_file_woff2) and os.path.getsize(font_output_file_woff2) > 0:
-                        self.logger.info(f"Font {font} ({weight}) already exists in woff2. Skipping download.")
+                        self.logger.info(f"Font {font} ({weight}) already exists. Skipping.")
                     else:
-                        # Download the CSS from Google Fonts for each weight
+                        # Fetch the Google Fonts CSS for this weight
                         response = self.session.get(google_font_url)
                         if response.status_code == 200:
                             css_data = response.text
-
-                            # Extract URLs and font formats from the CSS data
+                            # Extract actual font file URLs
                             font_urls = re.findall(r'url\((.*?)\) format\((.*?)\);', css_data)
-
-                            for font_url, format_type in font_urls:
-                                # Download the actual font file
+                            for font_url, _ in font_urls:
                                 font_file_response = self.session.get(font_url)
                                 if font_file_response.status_code == 200:
-                                    # Save woff2 if it's available
                                     with open(font_output_file_woff2, 'wb') as f:
                                         f.write(font_file_response.content)
-                                    self.logger.info(f"Downloaded {font} ({weight}) in woff2 from {font_url}")
-
+                                    self.logger.info(f"Downloaded {font} ({weight}) woff2 from {font_url}")
                                 else:
                                     self.logger.error(f"Failed to download font file from {font_url}")
                         else:
-                            self.logger.error(f"Failed to fetch font CSS from Google Fonts for {font} weight {weight}")
+                            self.logger.error(f"Failed to fetch CSS for {font} weight {weight}")
 
-                    # Generate @font-face rule with multiple formats (woff2, ttf)
+                    # Append the @font-face rule
                     css_content += f"""
 @font-face {{
     font-family: '{font.strip()}';
     font-style: normal;
     font-weight: {weight};
     font-display: swap;
-    src: url('../fonts/{font_file_name_woff2}') format('woff2'), 
+    src: url('../fonts/{font_file_name_woff2}') format('woff2'),
          url('../fonts/{font_file_name_ttf}') format('truetype');
 }}
 """
 
-                # Apply the font-family globally (optional customization)
+            # After all fonts are processed, set site-wide usage:
+            #  - first font → body
+            #  - second font → headings (if present)
+            css_content += "\n"
+            if self.fonts:
+                body_font = self.fonts[0].strip()
                 css_content += f"""
 body {{
-    font-family: '{font.strip()}', sans-serif;
+    font-family: '{body_font}', sans-serif;
+}}
+"""
+            if len(self.fonts) > 1:
+                heading_font = self.fonts[1].strip()
+                css_content += f"""
+h1, h2, h3, h4, h5, h6 {{
+    font-family: '{heading_font}', sans-serif;
 }}
 """
 
-            # Write the @font-face rules to the fonts.css file
+            # Write everything out
             with open(fonts_css_path, 'w') as f:
                 f.write(css_content)
 
