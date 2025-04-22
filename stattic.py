@@ -211,29 +211,75 @@ class FileProcessor:
         return content, images_converted
 
     def parse_markdown_with_metadata(self, filepath):
-        """Extract frontmatter, parse date, process images. Return (metadata, updated_md, images_converted)."""
+        """
+        Extract frontmatter, parse date, process inline images AND featured_image.
+        Returns (metadata, updated_markdown, images_converted).
+        """
+        # Read file
         with open(filepath, 'r', encoding='utf-8') as f:
-            content = f.read()
+            raw = f.read()
 
-        # Extract frontmatter
-        if content.startswith('---'):
-            parts = content.split('---', 2)
+        # Split YAML frontmatter
+        metadata = {}
+        markdown_body = raw
+        if raw.startswith('---'):
+            parts = raw.split('---', 2)
             if len(parts) == 3:
-                frontmatter, markdown_content = parts[1], parts[2]
-                metadata = yaml.safe_load(frontmatter) or {}
-            else:
-                metadata, markdown_content = {}, content
-        else:
-            metadata, markdown_content = {}, content
+                fm, md = parts[1], parts[2]
+                metadata = yaml.safe_load(fm) or {}
+                markdown_body = md
 
-        # Parse the date in metadata
+        # Normalize date
         if 'date' in metadata:
             metadata['date'] = self.parse_date(metadata['date'])
 
-        # Process images (which returns (updated_content, images_converted))
-        updated_markdown, images_converted = self.process_images(markdown_content, markdown_file_path=filepath)
+        images_converted = 0
 
-        # Return all three pieces
+        # Process ALL inline images (Markdown, <img>, srcset, links…)
+        updated_markdown, cnt = self.process_images(
+            markdown_body,
+            markdown_file_path=filepath
+        )
+        images_converted += cnt
+
+        # Process featured_image frontmatter
+        feat = metadata.get('featured_image')
+        if feat:
+            raw_fn = os.path.basename(feat)
+
+            # candidate source paths:
+            candidates = [
+                os.path.join(self.content_dir, 'assets', 'images', raw_fn),
+                os.path.join(os.path.dirname(self.content_dir), 'assets', 'images', raw_fn),
+                os.path.join(self.content_dir, raw_fn),
+                os.path.join(os.path.dirname(filepath), feat)
+            ]
+            source = next((p for p in candidates if os.path.exists(p)), None)
+
+            if source:
+                # ensure output/assets/images exists
+                out_assets = os.path.join(self.output_dir, 'assets', 'images')
+                os.makedirs(out_assets, exist_ok=True)
+
+                # copy PNG to output/assets/images
+                dest_png = os.path.join(out_assets, raw_fn)
+                shutil.copy2(source, dest_png)
+
+                # convert to WebP (this deletes the PNG)
+                webp_path = self.convert_image_to_webp(dest_png)
+                if webp_path:
+                    webp_fn = os.path.basename(webp_path)
+                    # point frontmatter at assets/images/your.webp
+                    metadata['featured_image'] = f"assets/images/{webp_fn}"
+                    images_converted += 1
+                else:
+                    self.logger.warning(f"Failed to convert featured image: {dest_png}")
+            else:
+                self.logger.warning(
+                    "Featured image not found in any of: " +
+                    ", ".join(candidates)
+                )
+
         return metadata, updated_markdown, images_converted
 
     def format_date(self, date_str=None):
@@ -918,40 +964,6 @@ h1, h2, h3, h4, h5, h6 {{
                     continue
         self.logger.warning(f"Unable to parse date: {date_str}. Using minimum date as fallback.")
         return datetime.min  # Fallback to the earliest date for sorting
-
-    def parse_markdown_with_metadata(self, filepath):
-        """Extract frontmatter and markdown content from the file, process images."""
-        try:
-            start_time = time.time()
-            with open(filepath, 'r') as f:
-                content = f.read()
-
-            # Check if the content contains frontmatter (starts with ---)
-            if content.startswith('---'):
-                parts = content.split('---', 2)  # Splitting into 3 parts: '', frontmatter, content
-                if len(parts) == 3:
-                    frontmatter, markdown_content = parts[1], parts[2]
-                    metadata = yaml.safe_load(frontmatter) or {}
-                else:
-                    self.logger.warning(f"Malformed frontmatter in {filepath}. Treating entire content as markdown.")
-                    metadata, markdown_content = {}, content
-            else:
-                self.logger.info(f"No frontmatter in {filepath}. Treating as pure markdown.")
-                metadata, markdown_content = {}, content
-
-            # Parse and normalize the date in metadata
-            if 'date' in metadata:
-                metadata['date'] = self.parse_date(metadata['date'])
-
-            # Process images in the markdown content
-            markdown_content = self.process_images(markdown_content)
-
-            duration = time.time() - start_time
-            self.logger.info(f"Parsed markdown file: {filepath} (Time taken: {duration:.6f} seconds)")
-            return metadata, markdown_content
-        except Exception as e:
-            self.logger.error(f"Failed to parse markdown file: {filepath} - {e}")
-            raise
 
     def get_markdown_files(self, directory):
         """Retrieve Markdown files."""
