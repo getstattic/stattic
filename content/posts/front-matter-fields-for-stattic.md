@@ -2,7 +2,7 @@
 title: "Customizing Stattic: Front Matter Fields"
 custom_url: front-matter-fields-for-stattic
 author: 1
-date: 2024-09-30
+date: 2025-04-22
 categories:
   - 1
 ---

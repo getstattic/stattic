@@ -2,7 +2,7 @@
 title: Say Hello to Stattic
 custom_url: say-hello-to-stattic
 author: 1
-date: 2024-10-02
+date: 2025-04-22
 categories:
   - 1
   - 2

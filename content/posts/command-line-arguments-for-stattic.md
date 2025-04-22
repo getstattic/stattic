@@ -2,7 +2,7 @@
 title: "Customizing Stattic: Command-Line Arguments for Stattic"
 custom_url: command-line-arguments-for-stattic
 author: 1
-date: 2024-09-29
+date: 2025-04-22
 categories:
   - 1
   - 2
