@@ -2,12 +2,10 @@
 title: Decentralizing Publishing with Stattic
 custom_url: decentralizing-publishing-with-stattic
 author: 1
-date: 2024-10-01
+date: 2025-04-21
 categories:
   - 0
 ---
-
-When control over content and website creation is increasingly centralized under unstable power, there's a growing need for tools that empower the community to publish independently.
 
 **Stattic** is an open source Python-based static site generator designed to simplify website creation and support the decentralization of publishing, giving the power back into the hands of the creator community where it belongs.
 
@@ -15,11 +13,16 @@ When control over content and website creation is increasingly centralized under
 
 The following list is in no particular order and will be changing as Stattic continues to grow with user needs in mind.
 
-### 1. Markdown Support
+### 1. Markdown with Enhanced Features
 
 Stattic uses Markdown for content creation, allowing you to write posts and pages in a straightforward and readable format.
 
-It employs the Mistune library to convert Markdown to HTML efficiently, supporting features like tables, task lists, and strikethrough text.
+Stattic uses [Mistune](https://mistune.readthedocs.io/en/latest/) with a **custom renderer** that supports:
+
+- Tables
+- Task lists
+- Strikethrough
+- Smart code block rendering with automatic HTML escaping
 
 ### 2. Template Rendering with Jinja2
 
@@ -89,6 +92,29 @@ In the front matter it's as simple as adding one word and one number.
 
 **Example:** `order: 5`
 
+### 13. RSS Feed and Sitemap Generation
+
+If you provide a `--site-url`, Stattic will:
+
+- Generate a valid RSS 2.0 feed at `/feed/index.xml`
+- Output a complete `/sitemap.xml` with last-modified timestamps
+- Escape and normalize all URLs and metadata
+
+**Example:** `--site-url https://stattic.site/`
+
+### 14. 404 Page and robots.txt
+
+Stattic builds a default `404.html` using your template and content. You can customize it like any other page.
+
+It also generates a `robots.txt` file based on the mode you choose:
+
+```bash
+--robots public   # allow indexing
+--robots private  # block all bots
+```
+
+If `--site-url` is provided, the `robots.txt` will automatically include a `Sitemap:` line pointing to your `/sitemap.xml`.
+
 ## Getting Started with Stattic
 
 1. **Organize Your Content**: Place your Markdown files in the `content/posts` and `content/pages` directories.
@@ -103,10 +129,12 @@ In the front matter it's as simple as adding one word and one number.
 
 ## Decentralized Publishing for the People
 
-**Stattic** is a bullshit free tool that empowers you to publish content on your own terms. 
+**Stattic** doesn’t ask permission. It gives it back.
 
-By simplifying static site generation and efficiently handling assets, it supports the movement toward decentralizing publishing. Whether you're a developer or a content creator, Stattic offers a minimalistic yet powerful solution for building your online presence.
+No CMS, plugins or middlemen necessary. Just clean, fast publishing on your own terms terms. With full control over your content, your design, and your future.
 
-Feel free to contribute to the project on [GitHub](https://github.com/getstattic/stattic) or customize it to suit your specific needs. The project is covered under the MIT license which is also included in the GitHub repository.
+Whether you're a developer, writer, artist, or creative misfit, Stattic is your toolkit for building an independent web presence without the noise.
 
-Together, we can promote a more decentralized and independent web 🤘
+It's open source. It's MIT licensed. And it's built to be forked, remixed, and made yours.
+
+Contribute on [GitHub](https://github.com/getstattic/stattic), build something great, and help take the web back — one static site at a time.

@@ -37,9 +37,17 @@ First, generate your site's content using Stattic.
 
     In your terminal, navigate to your project folder and run:
 
-    `python3 stattic.py --output ./build --fonts "Quicksand"`
+    ```yaml
+    python3 stattic.py --output ./build --fonts "Quicksand"
+    ```
 
     This command generates the static files in the `./build` directory. You can also pass a font list with the `--fonts`option to use fonts from Google Fonts. If you don't specify a font, it defaults to Quicksand.
+
+    If you're rebuilding, it's a good idea to clear the output directory first:
+
+    ```yaml
+    rm -rf build && mkdir build
+    ```
 
 * * * * *
 
@@ -47,7 +55,9 @@ First, generate your site's content using Stattic.
 
 1.  **Create a New GitHub Repository**
 
-    -   Go to [GitHub](https://github.com/) and create a new repository. Name it `your-username.github.io` if you want to use [GitHub Pages](https://pages.github.com/) (replace `your-username` with your actual GitHub username).
+    - Go to [GitHub](https://github.com/) and create a new repository. Name it `your-username.github.io` if you want to use [GitHub Pages](https://pages.github.com/) (replace `your-username` with your actual GitHub username).
+    - If you want your site at `https://your-username.github.io/`, name the repo `your-username.github.io`.
+    - For project pages (e.g. `your-username.github.io/your-repo-name/`), you can name it anything.
 
 2.  **Clone the Repository Locally** - Open your terminal, navigate to the directory where you want to clone your repository, and run:
 
@@ -87,10 +97,16 @@ First, generate your site's content using Stattic.
 
 ## Step 5: Enable GitHub Pages
 
-1.  **Configure GitHub Pages** - Go to your GitHub repository, click on the **Settings** tab, then scroll down to **GitHub Pages**.
-
-    -   Under **Source**, select `main` as the branch and choose `/ (root)` as the directory.
-    -   Click **Save**.
+1. **Configure GitHub Pages** - Go to your GitHub repository, click the **Settings** tab, then scroll to the **Pages** section.
+    - If you're deploying the build output to the root of your repo, select:
+        - **Branch**: `main`
+        - **Folder**: `/ (root)`
+    - If you prefer to keep your source files and deploy only the build output:
+        - Move the contents of `build/` into a `/docs` folder inside the repo.
+        - Then select:
+            - **Branch**: `main`
+            - **Folder**: `/docs`
+    Click **Save** when you're done.
 2.  **Access Your Site** - After a few minutes, your site will be live at `https://your-username.github.io/`.
 
 * * * * *

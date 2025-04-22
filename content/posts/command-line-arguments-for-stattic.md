@@ -19,7 +19,7 @@ In this post, we'll go through some of the most useful command-line arguments yo
 
 To start with, let's look at the basic command to build your site with Stattic:
 
-```
+```bash
 python3 stattic.py --output=output
 ```
 
@@ -33,19 +33,19 @@ One of the most useful features of <a href="/">Stattic</a> is the ability to min
 
 ### Example Usage:
 
-```
+```bash
 python3 stattic.py --output=output --minify
 ```
 
 This will:
 
-* Combine all CSS files into a single `main.min.css` file.
-* Combine all JavaScript files into a single `main.min.js` file.
+* Combine all CSS files into a single `stattic.min.css` file.
+* Combine all JavaScript files into a single `stattic.min.js` file.
 * Ensure that your base.html template includes these minified files.
 
 ### What Happens Under the Hood?
 
-When the `--minify` flag is used, Stattic will concatenate and minify all CSS and JS files in the assets folder, creating a `main.min.css` and `main.min.js` in the `output/assets` folder. These minified files are automatically referenced in the HTML files instead of the uncompressed versions.
+When the `--minify` flag is used, Stattic will concatenate and minify all CSS and JS files in the assets folder, creating a `stattic.min.css` and `stattic.min.js` in the `output/assets` folder. These minified files are automatically referenced in the HTML files instead of the uncompressed versions.
 
 ## Adding Google Fonts with `--fonts`
 
@@ -53,7 +53,7 @@ Want to include Google Fonts in your site? **Stattic** lets you specify which fo
 
 ### Example Usage:
 
-```
+```bash
 python3 stattic.py --output=output --fonts="Roboto,Open+Sans"
 ```
 
@@ -65,7 +65,12 @@ This command will download the specified fonts (in this case, Roboto and Open Sa
 * It saves the fonts locally in the `output/assets/fonts/` directory.
 * A CSS file (`fonts.css`) is generated that includes `@font-face` rules for each specified font and their various weights.
 
-You can then apply these fonts using the generated classes (e.g., `.roboto-400, .open-sans-300`).
+You don’t need to write any special class names — Stattic automatically assigns:
+
+- The first font (e.g. Roboto) to the `<body>`
+- The second font (if provided) to `<h1>` through `<h6>`
+
+So your site uses your chosen fonts right out of the box.
 
 ## Applying Custom Fonts in HTML
 
@@ -73,7 +78,7 @@ Once you've added your fonts using the `--fonts` argument, you can easily apply 
 
 For example, to apply Roboto 400 to a heading:
 
-```
+```bash
 `<h1 class="roboto-400">Welcome to My Site</h1>`
 ```
 
@@ -83,7 +88,7 @@ By default, Stattic shows 5 posts per page, but you can change this using the `-
 
 ### Example Usage:
 
-```
+```bash
 python3 stattic.py --output=output --posts-per-page=10
 ```
 
@@ -99,7 +104,7 @@ You can also change the way posts are sorted using the `--sort-by` argument. You
 
 ### Example Usage:
 
-```
+```bash
 python3 stattic.py --output=output --sort-by=title
 ```
 
@@ -113,11 +118,13 @@ This will sort the posts alphabetically by their title when building the site.
 
 ## Watching for File Changes with `--watch`
 
+> ⚠️ Note: The `--watch` flag is currently reserved for future functionality and may not rebuild automatically yet. Live-reloading is planned in a future update.
+
 If you're actively developing a site and making frequent changes, the `--watch` flag is a huge time-saver. It automatically rebuilds the site whenever you change a content file.
 
 ### Example Usage:
 
-```
+```bash
 python3 stattic.py --output=output --watch
 ```
 
@@ -129,7 +136,7 @@ You can combine multiple arguments to customize your build even further. For exa
 
 ### Example Usage:
 
-```
+```bash
 python3 stattic.py --output=output --minify --fonts="Lato,Montserrat" --posts-per-page=8 --sort-by=date
 ```
 
@@ -139,6 +146,27 @@ This will:
 * Download the Lato and Montserrat fonts.
 * Display 8 posts per page.
 * Sort posts by date.
+
+## Changing the Blog URL Slug with `--blog-slug`
+
+By default, posts are placed under the `/blog/` directory. You can customize this using:
+
+```bash
+python3 stattic.py --output=output --blog-slug=journal
+```
+
+This will place all your blog posts under `/journal/` instead.
+
+## Controlling Robots.txt Output
+
+You can tell Stattic whether to allow search engines to index your site using:
+
+```bash
+--robots public  # Allow all crawlers (default)
+--robots private # Block all crawlers
+```
+
+This writes a proper `robots.txt` file in your output directory. If `--site-url` is set, it also includes the `Sitemap:` link automatically.
 
 ## Summary of Useful Arguments
 

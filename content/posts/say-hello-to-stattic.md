@@ -13,15 +13,17 @@ categories:
 
 Welcome to **Stattic**, the lightweight, modern, static site generator that's decentralizing publishing and putting the power to create websites back into the hands of the community creating them.
 
-If you've ever been frustrated with the sluggishness, archaic architecture and endless database queries of traditional content management systems (yes, we're looking at you, **WordPress**), then Stattic is here to offer a better way forward.
+If you've ever been frustrated with the sluggishness, archaic architecture and endless database queries of traditional content management systems, then Stattic is here to offer a better way forward.
 
 ## What is Stattic?
 
-Stattic is a **static site generator** designed for developers, content creators, and anyone who values **speed**, **simplicity**, and **security** in their website builds. Stattic takes your content, processes it with modern templating, and outputs pure **static HTML**, **CSS**, and **JavaScript** files that can be deployed anywhere – from simple web hosts to CDNs like Netlify, Cloudflare Pages, or GitHub Pages.
+Stattic is a **static site generator** designed for developers, content creators, and anyone who values **speed**, **simplicity**, and **security** in their website builds. 
+
+Take your content, process it with modern templating, and output pure **static HTML**, **CSS**, and **JavaScript** files that can be deployed anywhere – from simple web hosts to CDNs like GitHub Pages, Cloudflare Pages, or countless others.
 
 ### Why Stattic?
 
-Users demand **speed** and **reliability**, which is what Stattic excels at. While sites powered by WordPress often fall victim to slow database calls, bloated plugins, and constant security patches, Stattic keeps things lean and mean.
+Users demand **speed** and **reliability**, which is what Stattic excels at. While CMS based websites fall victim to slow database calls, bloated plugins, and constant security patches, Stattic keeps things lean and mean.
 
 Here's what you can expect when you build with Stattic:
 
@@ -31,7 +33,7 @@ With Stattic, you can forget about slow load times. Don't take my word for it th
 
 [Stattic](https://stattic.site) sites are **static HTML** at their core, meaning no server-side rendering or database calls are needed. 
 
-Every page is pre-rendered and ready to be served instantly, resulting in blazing fast page loads. Say goodbye to that dreaded **"waiting for the database"** delay that can leave your visitors hanging, like websites runnnig on the WordPress CMS.
+Every page is pre-rendered and ready to be served instantly, resulting in blazing fast page loads. Say goodbye to that dreaded **"waiting for the database"** delay that can leave your visitors hanging.
 
 ### 2. **No Database, No Problem**
 
@@ -43,17 +45,17 @@ That's right, your site is pure **static files** – HTML, CSS, and JavaScript. 
 
 Stattic leverages modern web development practices like templating with **Jinja2**, a Python-powered templating engine. Your templates stay clean, reusable, and easy to maintain. 
 
-You can apply DRY (Don't Repeat Yourself) principles to your layout, making design changes effortless across your site. Unlike WordPress, where themes can feel like a tangled mess of spaghetti code, Stattic keeps things modular and organized.
+You can apply DRY (Don't Repeat Yourself) principles to your layout, making design changes effortless across your site.
 
 ### 4. **Security as a Standard**
 
 By removing the need for dynamic server-side rendering and databases, you eliminate a huge number of potential attack vectors. 
 
-Stattic websites are inherently more secure because there are no moving parts that can be exploited by hackers. No more worrying about outdated plugins or surprise security vulnerabilities that can make your WordPress CMS powered site a target.
+Stattic websites are inherently more secure because there are no moving parts that can be exploited by hackers. No more worrying about outdated plugins or surprise security vulnerabilities that can make your CMS powered site a target.
 
 ### 5. **Flexibility with Zero Bloat**
 
-If you've ever worked with the WordPress software, you know how quickly things can get bloated with unused plugins, themes, and database tables. 
+If you've ever worked with any CMS software, you know how quickly things can get bloated with unused plugins, themes, and database tables. 
 
 Stattic is different.
 
@@ -83,26 +85,22 @@ In one simple command, Stattic:
 
 Since Stattic outputs static files, you're not tied down to any specific hosting provider. 
 
-You can deploy your Stattic site anywhere – GitHub Pages, Netlify, Vercel, or even on traditional servers. No need to pay for heavy managed hosting like some other platforms force you into (cough WordPress cough).
+You can deploy your Stattic site anywhere – GitHub Pages, Cloudflare Pages, traditional servers - virtually anywhere.
+
+No need to pay for heavy managed hosting like some other platforms force you into.
 
 ### 8. No More Updates Breaking Your Site
 
-How many times has a WordPress update caused something to break on your site? It's a never-ending cycle of patching, fixing, and hoping nothing crashes. 
+How many times has an update caused something to break on your site? It's a never-ending cycle of patching, fixing, and hoping nothing crashes.
 
 Stattic is simple: once your site is built, there's no moving parts to update or break. _It just works_.
 
-### Why Move Away from WordPress?
-
-While the WordPress CMS has had its time and place, its complexity has grown over the years. 
-
-With each release comes the risk of breaking plugins, themes, or customizations. Security vulnerabilities are a constant concern, and managing performance with a database-backed site can be challenging.
-
-**Stattic** is the alternative for developers and site owners who want control, speed, and security without the headache of managing servers, databases, and plugins. It's built for the future of the web: static, fast, and reliable.
-
 ## Ready to Try Stattic?
 
-If you're ready to leave behind the heavy lifting of WordPress and try something more modern and efficient, Stattic is here for you. 
+If you're ready to leave behind the heavy and try something more modern and efficient, Stattic is here for you. 
 
 Whether you're a developer looking for a clean and customizable solution or a small business owner who just wants a fast and secure website, Stattic will get you there with less hassle.
 
-Ready to build your first Stattic site? Check out the [getting started guide](/blog/command-line-arguments-for-stattic/) and get started today!
+**Ready to build your first Stattic site?**
+
+Check out the [getting started guide](/blog/command-line-arguments-for-stattic/) and get started today!

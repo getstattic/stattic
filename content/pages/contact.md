@@ -27,4 +27,4 @@ If you're looking for more immediate support or want to engage with the **Statti
 Stay updated with the latest news and developments:
 
 - **Twitter**: [@getStattic](https://twitter.com/getstattic)
-- **GitHub**: [Stattic Repository](https://github.com/getstattic/stattic)
+- **GitHub**: [Stattic Repository](https://github.com/getstattic/statti

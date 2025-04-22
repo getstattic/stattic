@@ -12,24 +12,16 @@ Stattic was built with modern web standards in mind and provides flexibility for
 
 ### Who is Stattic For?
 
-- **Developers** who are tired of the complexities and security concerns of dynamic content management systems like WordPress and want to build something that just works.
+- **Developers** who are tired of the complexities and security concerns of dynamic content management systems and want to build something that just works.
 - **Freelancers** who want a reliable platform for creating client websites without worrying about constant maintenance.
 - **Small Business Owners** looking for a simple, cost-effective way to have an online presence without the headaches of server management or expensive hosting solutions.
 - **Tech-savvy Content Creators** who want more control over their site's speed and performance while still maintaining an easy workflow for content updates.
 
 ## Why Stattic?
 
-In the ever-evolving world of web development, static site generators are becoming the go-to choice for those who want simplicity and speed. Stattic was born out of frustration with the existing content management systems that often become bloated, insecure, and difficult to maintain. With Stattic, you can avoid unnecessary complexity, reduce load times, and eliminate the risk of server-side vulnerabilities.
+The web doesn't need more bloat. It needs speed, simplicity, and security. 
 
-### #WPDrama: A Catalyst for Building Stattic
-
-One of the major inspirations behind Stattic came from the ongoing discussions and controversies surrounding the **WordPress ecosystem**, particularly the recent #WPDrama involving **Matt Mullenweg** (WordPress co-founder) and **WP Engine**.
-
-In 2024, a public disagreement surfaced over the direction of the WordPress platform and the role of managed hosting providers like WP Engine. Matt Mullenweg's concerns were centered around WP Engine's move towards decoupled solutions that some in the community felt strayed away from the “open web” principles that WordPress was built upon. WP Engine, on the other hand, was exploring ways to offer headless CMS capabilities, which was seen by many as a necessary evolution for WordPress to stay relevant in modern web development.
-
-This sparked widespread debates within the WordPress community about the future of the platform. Developers and agencies began to express frustration with WordPress's increasing complexity, slow performance, and the growing reliance on expensive managed hosting solutions. 
-
-For many, the ongoing #WPDrama served as a wake-up call that it might be time to look for alternatives. Instead of dealing with the unpredictable changes and power struggles in the WordPress ecosystem, **Stattic** offers a clean break: a static site generator that stays true to its purpose — fast, lightweight, and easy-to-use. The platform avoids the pitfalls of managed hosting dependency and gives control back to the developers and site owners.
+Stattic was built as a response to the mess that modern CMSs have become - bloated, fragile, and overengineered. With Stattic, you skip the complexity, cut the load time, and leave server-side vulnerabilities behind.
 
 ## How Stattic Works
 
@@ -44,16 +36,16 @@ Here's how it works in a nutshell:
 
 ## The Future of Stattic
 
-While Stattic started as a response to some of the frustrations in the WordPress ecosystem, it has grown into a full-featured static site generator with its own strengths and advantages. We're committed to continuing its development by:
+There will ongoing development, including:
 - Adding more customizable templates.
 - Offering even more flexibility in content management.
 - Improving support for modern web technologies (e.g., JAMstack integrations, API-driven content).
 - Providing robust documentation and support to help developers of all skill levels build amazing websites.
 
-Whether you're looking to leave behind the complexities of WordPress or simply want to experiment with static sites, Stattic is here to empower you. We believe the future of the web is **faster**, **lighter**, and **more secure**, and Stattic is built to lead that future.
+Whether you're looking to leave behind the complexities of CMSs or simply want to experiment with static sites, Stattic is here to empower you. We believe the future of the web is **faster**, **lighter**, and **more secure**, and Stattic is built to lead that future.
 
 Thank you for being part of our journey!
 
 ## Conclusion
 
-If you're tired of constant updates, server-side issues, and the unpredictability of WordPress and its ecosystem, Stattic might be exactly what you're looking for. We're not against WordPress, but sometimes simpler is better. Stattic is here to offer that simplicity without sacrificing control or flexibility. We hope you enjoy building with it as much as we enjoyed creating it.
+If you're tired of constant updates, server-side issues, and the unpredictability of CMSs and their ecosystems, Stattic might be exactly what you're looking for. We're not against CMSs, but sometimes simpler is better. Stattic is here to offer that simplicity without sacrificing control or flexibility. We hope you enjoy building with it as much as we enjoyed creating it.
