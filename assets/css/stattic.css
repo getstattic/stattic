@@ -68,7 +68,6 @@
 
 .stattic-content p {
     margin-bottom: 1.5rem;
-    color: var(--text-color);
     line-height: 1.75;
 }
 
@@ -80,10 +79,6 @@
     display: block;
 }
 
-.stattic-content span {
-    color: var(--text-color);
-}
-
 .stattic-content h1, 
 .stattic-content h2, 
 .stattic-content h3, 
@@ -92,11 +87,16 @@
 .stattic-content h6 {
     margin-bottom: 1.5rem;
     font-weight: 600;
-    color: var(--text-color);
 }
 
 .stattic-content h1 {
-    font-size: 2.5rem; /* Larger for emphasis */
+    font-size: 2.5rem;
+}
+
+.stattic-content h1.post-title,
+.stattic-content h1.page-title {
+    font-size: 3.75rem;
+    font-weight: 700;
 }
 
 .stattic-content h2 {
