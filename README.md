@@ -54,6 +54,8 @@
 
 ### Requirements
 
+**Python packages (install via pip)**
+
 - `markdown`: Converts Markdown files to HTML.
 - `jinja2`: Template engine for rendering HTML pages.
 - `pyyaml`: Parses YAML frontmatter from Markdown files.
@@ -64,6 +66,10 @@
 - `mistune`: Markdown parser with custom rendering.
 - `watchdog`: (Optional) Monitors file changes in watch mode.
 
+**System binaries**
+
+- `gif2webp`: Part of the **libwebp** tools (`brew install webp` or `apt-get install webp`);
+              used to convert animated GIFs to animated WebP quickly.
 ---
 
 ## Usage
