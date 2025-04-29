@@ -1,5 +1,5 @@
 import os
-import shutil
+import subprocess, shutil
 import markdown
 import hashlib
 import yaml
@@ -98,14 +98,26 @@ class FileProcessor:
             return None
 
     def convert_image_to_webp(self, image_path):
-        """Convert an image to WebP format and delete the original."""
         try:
-            img = Image.open(image_path)
+            ext = os.path.splitext(image_path)[1].lower()
             webp_path = image_path.rsplit('.', 1)[0] + '.webp'
-            img.save(webp_path, 'WEBP')
+
+            if ext == ".gif":
+                # Use gif2webp: multithreaded & fast
+                cmd = ["gif2webp", "-mixed", "-mt", "-lossless", image_path, "-o", webp_path]
+                result = subprocess.run(cmd, capture_output=True)
+                if result.returncode != 0:
+                    self.logger.error(f"gif2webp failed: {result.stderr.decode()}")
+                    return None
+            else:
+                # Pillow for PNG/JPG etc.
+                img = Image.open(image_path)
+                img.save(webp_path, "WEBP", quality=85, method=6)
+
             os.remove(image_path)
             return webp_path
-        except Exception:
+        except Exception as e:
+            self.logger.error(f"Failed to convert {image_path}: {e}")
             return None
 
     def copy_local_image(self, local_image_path):
