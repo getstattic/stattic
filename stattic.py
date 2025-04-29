@@ -585,35 +585,6 @@ class Stattic:
         except Exception as e:
             self.logger.error(f"Failed to minify assets: {e}")
 
-    def format_date(self, date_str=None):
-        """Format the date from 'YYYY-MM-DDTHH:MM:SS' to 'Month DD, YYYY'."""
-        if not date_str:
-            return ''  # Return an empty string if no date is provided
-
-        # Check if date_str is already a datetime object
-        if isinstance(date_str, datetime):
-            date_obj = date_str
-        elif isinstance(date_str, date):
-            # If it's a datetime.date object, convert it to datetime
-            date_obj = datetime(date_str.year, date_str.month, date_str.day)
-        elif isinstance(date_str, str):
-            # Attempt to parse and format the date with time
-            try:
-                date_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
-            except ValueError:
-                try:
-                    # Fallback to parsing date without time
-                    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                except ValueError:
-                    # If parsing fails, return the original date string
-                    return date_str
-        else:
-            # If it's an unexpected type, return an empty string or handle accordingly
-            return ''
-
-        # Return the formatted date
-        return date_obj.strftime('%b %d, %Y')
-
     def load_categories_and_tags(self):
         """Load categories and tags from YAML files."""
         try:
@@ -637,10 +608,6 @@ class Stattic:
             self.logger.error(f"Authors YAML file not found: {e}")
         except Exception as e:
             self.logger.error(f"Error loading authors: {e}")
-
-    def get_author_name(self, author_id):
-        """Fetch the author's name based on the author_id."""
-        return self.authors.get(author_id, "Unknown")
 
     def load_pages(self):
         """Load pages for the navigation and use across all templates."""
@@ -674,50 +641,6 @@ class Stattic:
 
         except Exception as e:
             self.logger.error(f"Failed to load pages: {e}")
-
-    def download_image(self, url, output_dir, markdown_file_path=None):
-        """Download an image and save it locally, or check if it's a local image."""
-        try:
-            # Only process URLs with common image file extensions
-            if not re.search(r'\.(jpe?g|png|gif|webp|bmp|tiff)(\?.*)?$', url, re.IGNORECASE):
-                #self.logger.warning(f"Skipping non-image URL: {url}")
-                return None
-
-            # Check if the URL is relative (starts with a slash or '..' indicating local reference)
-            if url.startswith('/') or url.startswith('../') or not url.startswith('http'):
-                # If markdown_file_path is provided, resolve the local path relative to it
-                if markdown_file_path:
-                    # Resolve the relative path based on the markdown file's directory
-                    markdown_dir = os.path.dirname(markdown_file_path)
-                    local_image_path = os.path.abspath(os.path.join(markdown_dir, url))
-                else:
-                    # Otherwise, resolve it relative to the content directory
-                    local_image_path = os.path.abspath(os.path.join(self.content_dir, url))
-
-                if os.path.exists(local_image_path):
-                    self.logger.info(f"Found local image: {local_image_path}")
-                    return local_image_path
-                else:
-                    self.logger.error(f"Local image not found: {local_image_path}")
-                    return None
-
-            # If it's not a local path, treat it as an external URL
-            response = self.session.get(url)
-            response.raise_for_status()  # Ensure the request was successful
-
-            # Extract the image file name
-            image_name = os.path.basename(url)
-            image_path = os.path.join(output_dir, image_name)
-
-            # Save the image
-            with open(image_path, 'wb') as image_file:
-                image_file.write(response.content)
-
-            self.logger.info(f"Downloaded image: {url}")
-            return image_path
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"Failed to download image {url}: {e}")
-            return None
 
     def download_fonts(self):
         """Download Google Fonts based on provided names and save the font files locally, dynamically set font-family in CSS."""
@@ -841,115 +764,6 @@ h1, h2, h3, h4, h5, h6 {{
         # Ensure that the assets are copied to the output directory
         self.copy_assets_to_output()
 
-    def convert_image_to_webp(self, image_path):
-        """Convert an image to WebP format and delete the original."""
-        try:
-            img = Image.open(image_path)
-            webp_path = image_path.rsplit('.', 1)[0] + '.webp'
-            img.save(webp_path, 'WEBP')
-            self.logger.info(f"Converted image to WebP: {webp_path}")
-            
-            # Remove the original image file to save space
-            os.remove(image_path)
-            self.logger.info(f"Removed original image: {image_path}")
-            
-            self.image_conversion_count += 1  # Increment conversion count
-            return webp_path
-        except Exception as e:
-            self.logger.error(f"Failed to convert {image_path} to WebP: {e}")
-            return None
-
-    def process_images(self, content):
-        """Find all image URLs in the content, download, convert them, and replace with local WebP paths."""
-        # Extract image URLs from Markdown syntax
-        markdown_image_urls = re.findall(r'!\[.*?\]\((.*?)\)', content)
-        
-        # Extract image URLs from HTML <img> tags, including src, srcset, and wrapped links
-        html_image_urls = re.findall(r'<img\s+[^>]*src="([^"]+)"', content)
-        href_urls = re.findall(r'<a\s+[^>]*href="([^"]+)"', content)
-        
-        # Extract srcset image URLs (multiple URLs per srcset)
-        srcset_urls = re.findall(r'srcset="([^"]+)"', content)
-        all_srcset_urls = []
-        for srcset in srcset_urls:
-            all_srcset_urls.extend([url.strip().split(' ')[0] for url in srcset.split(',')])
-        
-        # Combine all unique image URLs
-        image_urls = set(markdown_image_urls + html_image_urls + href_urls + all_srcset_urls)
-        
-        local_image_paths = {}
-        
-        # Process all unique image URLs found
-        for url in image_urls:
-            # Ensure the URL points to an image file
-            if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
-                continue
-
-            self.logger.info(f"Processing image: {url}")
-            image_name = os.path.basename(url)
-            webp_image_path = os.path.join(self.images_dir, image_name.rsplit('.', 1)[0] + '.webp')
-
-            # Check if the WebP version already exists
-            if os.path.exists(webp_image_path):
-                self.logger.info(f"Using existing WebP image: {webp_image_path}")
-                local_image_paths[url] = f"/images/{os.path.basename(webp_image_path)}"
-            else:
-                # Download and convert the image if the WebP version does not exist
-                image_path = self.download_image(url, self.images_dir)
-                if image_path:
-                    webp_path = self.convert_image_to_webp(image_path)
-                    if webp_path:
-                        local_image_paths[url] = f"/images/{os.path.basename(webp_path)}"
-
-        # Replace HTML attributes (href, src) that directly reference the images
-        for url, webp_path in local_image_paths.items():
-            content = content.replace(f'href="{url}"', f'href="{webp_path}"')
-            content = content.replace(f'src="{url}"', f'src="{webp_path}"')
-
-        # Replace srcset attributes
-        def replace_srcset(match):
-            srcset_value = match.group(1)
-            srcset_entries = srcset_value.split(',')
-
-            new_srcset_entries = []
-            for entry in srcset_entries:
-                parts = entry.strip().split(' ')
-                url_part = parts[0]
-                if url_part in local_image_paths:
-                    parts[0] = local_image_paths[url_part]
-                new_srcset_entries.append(' '.join(parts))
-            return 'srcset="' + ', '.join(new_srcset_entries) + '"'
-        
-        content = re.sub(r'srcset="([^"]+)"', replace_srcset, content)
-
-        # Replace Markdown image syntax: ![](url)
-        def replace_markdown_image(match):
-            prefix = match.group(1)  # e.g. "![alt text]("
-            url = match.group(2)     # the URL inside the parentheses
-            suffix = match.group(3)  # the closing ")"
-            if url in local_image_paths:
-                return prefix + local_image_paths[url] + suffix
-            return match.group(0)
-
-        content = re.sub(r'(!\[.*?\]\()([^)]*)(\))', replace_markdown_image, content)
-
-        # Replace Markdown link syntax that have image URLs: [text](url)
-        def replace_markdown_link(match):
-            prefix = match.group(1)  # e.g. "[text]("
-            url = match.group(2)     # the URL inside the parentheses
-            suffix = match.group(3)  # the closing ")"
-            if url in local_image_paths:
-                return prefix + local_image_paths[url] + suffix
-            return match.group(0)
-
-        content = re.sub(
-            r'(\[.*?\]\()([^)]*\.(?:jpg|jpeg|png|gif|webp|bmp|tiff)(?:\?.*?)?)(\))',
-            replace_markdown_link,
-            content
-        )
-        self.logger.info("Stattic.process_images is running")
-        return content
-
     def parse_date(self, date_str):
         """Parse the date string into a datetime object."""
         if isinstance(date_str, datetime):
@@ -968,89 +782,6 @@ h1, h2, h3, h4, h5, h6 {{
     def get_markdown_files(self, directory):
         """Retrieve Markdown files."""
         return [f for f in os.listdir(directory) if f.endswith('.md')]
-
-    def build_post_or_page(self, metadata, html_content, post_slug, output_dir, is_page=False):
-        """Render the post or page template and write it to the output directory."""
-        try:
-            os.makedirs(output_dir, exist_ok=True)
-            output_file_path = os.path.join(output_dir, 'index.html')
-
-            # Fix title rendering to ensure it is a string, not a dict
-            title = metadata.get('title', 'Untitled')
-            if isinstance(title, dict):
-                title = title.get('rendered', 'Untitled')
-
-            # Get author name using the helper function
-            author_name = self.get_author_name(metadata.get('author', 'Unknown'))
-
-            # Format the date using the format_date helper function
-            formatted_date = self.format_date(metadata.get('date'))
-
-            post_categories = []
-            for cat_id in metadata.get('categories', []):
-                if isinstance(cat_id, int):
-                    category = self.categories.get(cat_id, {})
-                    if isinstance(category, dict):
-                        post_categories.append(category.get('name', f"Unknown (ID: {cat_id})"))
-                    elif isinstance(category, str):
-                        post_categories.append(category)  # Use the string directly
-                    else:
-                        self.logger.error(f"Invalid category format for ID: {cat_id}")
-                else:
-                    self.logger.error(f"Invalid category ID: {cat_id}")
-
-            post_tags = []
-            for tag_id in metadata.get('tags', []):
-                if isinstance(tag_id, int):
-                    tag = self.tags.get(tag_id, {})
-                    post_tags.append(tag.get('name', f"Unknown (ID: {tag_id})"))
-                else:
-                    self.logger.error(f"Invalid tag ID: {tag_id}")
-
-            # Calculate relative_path based on directory depth
-            relative_path = self.calculate_relative_path(output_dir)
-
-            # Get the template part from the frontmatter or fallback to 'post.html' or 'page.html'
-            template_part = metadata.get('template', None)
-
-            # If no template is specified, fallback to post.html or page.html
-            if template_part:
-                template_name = f"post-{template_part}.html" if not is_page else f"page-{template_part}.html"
-            else:
-                template_name = 'page.html' if is_page else 'post.html'
-
-            rendered_html = self.render_template(
-                template_name,
-                content=html_content,
-                title=title,
-                author=author_name,
-                date=formatted_date,
-                categories=post_categories,
-                tags=post_tags,
-                featured_image=metadata.get('featured_image', None),
-                seo_title=metadata.get('seo_title', title),
-                seo_keywords=metadata.get('keywords', ''),
-                seo_description=metadata.get('description', ''),
-                lang=metadata.get('lang', 'en'),
-                pages=self.pages,  # Pass pages for consistent navigation
-                page=metadata,  # Pass metadata as 'page' for template
-                metadata=metadata,
-                relative_path=relative_path  # Pass relative_path to templates
-            )
-
-            # Write the rendered HTML to the output file
-            with open(output_file_path, 'w') as output_file:
-                output_file.write(rendered_html)
-
-            self.logger.info(f"Generated {'page' if is_page else 'post'}: {output_file_path}")
-            if is_page:
-                self.pages_generated += 1
-            else:
-                self.posts_generated += 1
-
-        except Exception as e:
-            self.logger.error(f"Failed to generate {'page' if is_page else 'post'} {post_slug}: {e}")
-            raise
 
     def render_template(self, template_name, **context):
         """Render a template using Jinja2 with the provided context."""
@@ -1154,18 +885,6 @@ h1, h2, h3, h4, h5, h6 {{
             f.write(rendered_html)
 
         self.logger.info(f"Generated blog archive page at /{self.blog_slug}/index.html")
-
-    def convert_markdown_to_html(self, markdown_content):
-        """Convert Markdown content to HTML."""
-        # Use the custom markdown filter for consistent processing
-        return self.markdown_filter(markdown_content)
-
-    def generate_excerpt(self, content):
-        """Generate an excerpt from the post content if no excerpt is provided."""
-        if not content:
-            return ''
-        words = content.split()[:30]  # Take the first 30 words
-        return ' '.join(words) + '...'
 
     def calculate_relative_path(self, current_output_dir):
         # If site_url is provided, always return absolute path "/"
@@ -1277,16 +996,6 @@ h1, h2, h3, h4, h5, h6 {{
                 f.write(rendered_html)
 
             self.logger.info(f"Generated paginated index page at {output_path}")
-
-    def build_static_pages(self):
-        """Generate static pages like contact page."""
-        # Example for a static contact page
-        output_dir = os.path.join(self.output_dir, 'contact')
-        os.makedirs(output_dir, exist_ok=True)
-        rendered_html = self.render_template('page.html', title="Contact Us", content="<p>Contact page content</p>", relative_path='../')
-        with open(os.path.join(output_dir, 'index.html'), 'w') as output_file:
-            output_file.write(rendered_html)
-        self.logger.info(f"Generated contact page: {output_dir}")
 
     def generate_rss_feed(self, site_url, site_name=None):
         """Generate an RSS feed from the list of posts."""
