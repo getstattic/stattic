@@ -111,7 +111,7 @@ This command processes the content in the `content/` directory, applies the temp
     python3 stattic.py --posts-per-page 10
     ```
 
-- `--sort-by`: Sort posts by `date`, `title`, or `author`. Default is `date`.
+- `--sort-by`: Sort posts by `date`, `title`, `author` or `order`. Default is `date`.
     ```
     python3 stattic.py --sort-by title
     ```
@@ -152,7 +152,6 @@ python3 stattic.py --output ~/Documents/demo --posts-per-page 10 --sort-by title
 ### **Directory Structure**
 
 - `content/`
-
     - `posts/`: Place all blog posts here as Markdown (`.md`) files.
     - `pages/`: Place all static pages (e.g., About, Contact) here as Markdown (`.md`) files.
     - `categories.yml`: Define categories for your posts.
@@ -199,7 +198,7 @@ nav_hide: false
 
 # About Stattic
 
-Stattic is a lightweight static site generator...
+Stattic is a Python-based static site generator...
 ```
 
 * * *
