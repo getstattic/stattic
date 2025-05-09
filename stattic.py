@@ -389,6 +389,8 @@ class FileProcessor:
         try:
             # Parse frontmatter and do initial processing
             metadata, updated_markdown, images_converted = self.parse_markdown_with_metadata(file_path)
+            metadata.setdefault('order', 1000)
+
             # If it's a draft post, skip
             if not is_page and metadata.get('draft', False):
                 print(f"Skipping draft: {file_path}")
@@ -869,11 +871,14 @@ h1, h2, h3, h4, h5, h6 {{
         blog_page_output = os.path.join(self.output_dir, self.blog_slug)
         os.makedirs(blog_page_output, exist_ok=True)
 
-        sorted_posts = sorted(
-            self.posts,
-            key=lambda p: self.parse_date(p.get('date', '')),
-            reverse=True
-        )
+        if self.sort_by == 'order':
+            sorted_posts = sorted(self.posts, key=lambda p: p['metadata'].get('order', 1000))
+        elif self.sort_by == 'title':
+            sorted_posts = sorted(self.posts, key=lambda p: p.get('title', '').lower())
+        elif self.sort_by == 'author':
+            sorted_posts = sorted(self.posts, key=lambda p: str(p['metadata'].get('author', '')).lower())
+        else:
+            sorted_posts = sorted(self.posts, key=lambda p: self.parse_date(p.get('date', '')), reverse=True)
 
         total_posts = len(sorted_posts)
         posts_per_page = self.posts_per_page
@@ -962,6 +967,9 @@ h1, h2, h3, h4, h5, h6 {{
                 author_id = p['metadata'].get('author', '') if 'metadata' in p else ''
                 return str(author_id).lower()
             sort_key = author_lower
+            reverse_sort = False
+        elif self.sort_by == 'order':
+            sort_key = lambda p: p['metadata'].get('order', 1000)
             reverse_sort = False
         else:
             # default: sort by date descending
@@ -1302,7 +1310,7 @@ if __name__ == "__main__":
     parser.add_argument('--templates', type=str, default=os.path.join(os.path.dirname(__file__), 'templates'))
     parser.add_argument('--assets', type=str)
     parser.add_argument('--posts-per-page', type=int, default=5)
-    parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author'], default='date')
+    parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author', 'order'], default='date')
     parser.add_argument('--fonts', type=str)
     parser.add_argument('--site-url', type=str)
     parser.add_argument('--robots', type=str, choices=['public', 'private'], default='public')
