@@ -898,7 +898,11 @@ h1, h2, h3, h4, h5, h6 {{
             redirect_html = """<!DOCTYPE html>
     <html lang="en">
     <head>
-        <meta http-equiv="refresh" content="0; url=/" />
+        <meta charset="UTF-8">
+        <script>
+            // Redirect instantly without rendering anything.
+            window.location.replace("/");
+        </script>
         <meta name="robots" content="noindex">
         <title>Redirecting ...</title>
     </head>
