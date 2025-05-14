@@ -884,18 +884,46 @@ h1, h2, h3, h4, h5, h6 {{
         posts_per_page = self.posts_per_page
         total_pages = (total_posts + posts_per_page - 1) // posts_per_page
         current_page = 1
-        page_posts = sorted_posts[:posts_per_page]  # First page posts
+        page_posts = sorted_posts[:posts_per_page]
         pagination_links = self.get_pagination_links(current_page, total_pages)
 
+        # Check for custom templates
+        has_custom_blog_template = os.path.exists(os.path.join(self.templates_dir, 'page-blog.html'))
+        has_custom_home_template = os.path.exists(os.path.join(self.templates_dir, 'page-home.html'))
+
+        if has_custom_blog_template:
+            template_name = 'page-blog.html'
+        elif not has_custom_home_template:
+            # No custom blog or homepage → redirect /blog to /
+            redirect_html = """<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta http-equiv="refresh" content="0; url=/" />
+        <meta name="robots" content="noindex">
+        <title>Redirecting ...</title>
+    </head>
+    <body>
+        <p>If you are not redirected automatically, <a href="/">click here</a>.</p>
+    </body>
+</html>"""
+            with open(os.path.join(blog_page_output, 'index.html'), 'w') as f:
+                f.write(redirect_html)
+            self.logger.info("No blog/homepage template found. Redirected /blog/ to /.")
+            return
+        else:
+            self.logger.warning("Template 'page-blog.html' not found. Falling back to 'page.html'.")
+            template_name = 'page.html'
+
         rendered_html = self.render_template(
-            'page-blog.html',
+            template_name,
             posts=page_posts,
             pages=self.pages,
             page={'title': 'Blog'},
             relative_path=self.calculate_relative_path(blog_page_output),
             total_pages=total_pages,
             current_page=current_page,
-            page_numbers=pagination_links
+            page_numbers=pagination_links,
+            site_url=self.site_url
         )
 
         with open(os.path.join(blog_page_output, 'index.html'), 'w') as f:
@@ -1008,7 +1036,8 @@ h1, h2, h3, h4, h5, h6 {{
                 relative_path=self.calculate_relative_path(page_output_dir),
                 current_page=page_num,
                 total_pages=total_pages,
-                page_numbers=pagination_links
+                page_numbers=pagination_links,
+                site_url=self.site_url
             )
 
             output_path = os.path.join(page_output_dir, 'index.html')
@@ -1253,7 +1282,9 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
                 title="Page Not Found",
                 content="<p>The page you are looking for does not exist.</p>",
                 relative_path='./',
-                page={}  # Provide an empty page context
+                page={},
+                pages=self.pages,
+                site_url=self.site_url
             )
 
             # Write the rendered 404 HTML to the root directory
@@ -1279,8 +1310,13 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
         # Build the blog page
         self.build_blog_page()
 
-        # Build additional pages (index, static pages)
-        self.build_index_page()
+        # If a custom home page exists (i.e. a page with permalink "/" or ""),
+        # skip generating the default index page to avoid a conflict.
+        home_page_exists = any(page['permalink'] in ['', '/'] for page in self.pages)
+        if home_page_exists:
+            self.logger.info("Custom home page detected; skipping default index page generation.")
+        else:
+            self.build_index_page()
 
         # Build the 404 page
         self.build_404_page()
