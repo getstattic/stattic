@@ -1,5 +1,27 @@
 # CHANGELOG.md
 
+## 0.2.0
+
+- [🐛 BUG: Fixed Markdown tables rendering as raw HTML](https://github.com/getstattic/stattic/commit/0c25e5da5d2a37ca6b89ab6fe1217395fc713075)
+- [🐛 BUG: Fixed session not found during Google Font download](https://github.com/getstattic/stattic/commit/43b797b854521e980186ea4bbb01bb70c53a20e2)
+- [👌 IMPROVE: Updated HTTP requests with persistent session to optimize image and font downloads](https://github.com/getstattic/stattic/commit/b27feabd7c4536aae23e3f81dd6077c207c82af9)
+- [👌 IMPROVE: Updated asset path if the --site-url flag is passed](https://github.com/getstattic/stattic/commit/46b01212529dd0e4e9b9760f1890f5adfef86e01)
+- [👌 IMPROVE: Updated file processing to help with conversions to webp](https://github.com/getstattic/stattic/commit/ec209a225e44a08dc0f266061812a74ab9cc1412)
+- [👌 IMPROVE: Updated gitignore to ignore output and templates folders](https://github.com/getstattic/stattic/commit/a8a7ed35287e81db40daedad0b24878165cd3d40)
+- [👌 IMPROVE: Updated front matter post content](https://github.com/getstattic/stattic/commit/2692add3e2c4c4bd7ab1c71b1c272f6c6961068f)
+- [👌 IMPROVE: Updated font file names to replace spaces with dashes](https://github.com/getstattic/stattic/commit/41719fbecf2f908dbfff43f658509f4eae36b0cd)
+- [👌 IMPROVE: Updated templates to use stattic-content class for optional override of styles](https://github.com/getstattic/stattic/commit/918b9f6cdb236692544bb8265bcfd23bfc15902d)
+- [👌 IMPROVE: Updated --fonts flag to use first font for body and second font for title](https://github.com/getstattic/stattic/commit/68979c5137c6ae0d4ce639920039bf9d0996af21)
+- [👌 IMPROVE: Updated Google fonts to pull all available weights & gracefully skip unavailable weights](https://github.com/getstattic/stattic/commit/f273d7137008d314866339e39befdd1cbf7c09e4)
+- [👌 IMPROVE: Removed unnecessary image file](https://github.com/getstattic/stattic/commit/87d30a54e7025bb1d0842314325f5d6593fc9853)
+- [👌 IMPROVE: General code cleanup](https://github.com/getstattic/stattic/commit/b7fa7223e629a0c3c2fc62471589fce3d7f76471)
+- [👌 IMPROVE: Updated title to conditionally use seo_title](https://github.com/getstattic/stattic/commit/7c9ebff9c3139491d8989be72914be8680b14e6c)
+- [👌 IMPROVE: Updated webp processing to include featured_image from front matter](https://github.com/getstattic/stattic/commit/869ef7e28735eb83256dfb551328b31194b4cc96)
+- [👌 IMPROVE: Updated various template styles](https://github.com/getstattic/stattic/commit/26e65c6d5eb8b0302ad801f1cd342f549c05e048)
+- [👌 IMPROVE: Updated post content dates to reflect a new day](https://github.com/getstattic/stattic/commit/d4bdb6787476040752b0a0a68700c367509a4adf)
+- [📖 DOC: Updated demo content](https://github.com/getstattic/stattic/commit/c989fedcc8f4288ced389784f97383d147be0727)
+- [📖 DOC: Updated link in markdown content](https://github.com/getstattic/stattic/commit/d691923c9a35a83deeaf29d03c795b2eaa9ccaa3)
+
 ## 0.1.0
 
 * [📦 NEW: Added pagination to the core theme's index and category template](https://github.com/getstattic/stattic/commit/c5fec466975c6fbab48ec1dc859512dee05a20ca)
