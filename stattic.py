@@ -802,7 +802,20 @@ h1, h2, h3, h4, h5, h6 {{
         try:
             start_time = time.time()
             template = self.env.get_template(template_name)
-            context['minify'] = getattr(args, 'minify', False)  # Pass the minify flag
+
+            # Auto-set minify flag
+            context.setdefault('minify', getattr(args, 'minify', False))
+
+            # Always include site_url
+            context.setdefault('site_url', self.site_url)
+
+            # Override relative_path if site_url is set
+            if self.site_url:
+                context['relative_path'] = '/'
+            else:
+                # Fallback: let caller set relative_path manually or default to './'
+                context.setdefault('relative_path', './')
+
             rendered_template = template.render(context)
             duration = time.time() - start_time
             self.logger.info(f"Rendered template: {template_name} (Time taken: {duration:.6f} seconds)")
