@@ -450,6 +450,10 @@ class InfoFilter(logging.Filter):
             return any(msg in record.msg for msg in allowed_messages)
         return True  # Allow all other levels (WARNING, ERROR, etc.)
 
+def site_title_from_url( url ):
+    domain = urlparse( url ).netloc.replace( "www.", "" )
+    return domain
+
 class Stattic:
     def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None, site_url=None, assets_dir=None, blog_slug='blog'):
         self.session = requests.Session()
@@ -1287,6 +1291,82 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
         except Exception as e:
             self.logger.error(f"Failed to generate robots.txt: {e}")
 
+    def generate_llms_txt( self, site_title = None, site_tagline = None ):
+        """
+        Build a human-readable llms.txt with post / page indexes for
+        large-language-model ingestion.
+
+        Format
+        ------
+        # <site_title>
+        > <site_tagline>
+
+        This site contains structured content formatted for LLM-friendly consumption.
+
+        ## Posts
+        - [Title](absolute-url): ID <stable-id>
+
+        ## Pages
+        - [Title](absolute-url): ID <stable-id>
+
+        # Sitemap
+        https://example.com/sitemap.xml
+        """
+        try:
+            if not self.site_url:
+                self.logger.warning( "llms.txt skipped – requires --site-url" )
+                return
+
+            site_title   = site_title   or site_title_from_url( self.site_url )
+            site_tagline = site_tagline or ""
+
+            # ---------- helpers ----------
+            def abs_url( rel ):  # always ends in “/”
+                return f"{ self.site_url.rstrip('/') }/{ rel.lstrip('/') }"
+
+            def stable_id( url ):          # 32-bit deterministic numeric id
+                return int( hashlib.md5( url.encode() ).hexdigest()[:8], 16 )
+
+            # ---------- header ----------
+            lines  = [ f"# { site_title }" ]
+            if site_tagline:
+                lines.append( f"> { site_tagline }" )
+            lines.append( "" )
+            lines.append( "This site contains structured content formatted for LLM-friendly consumption." )
+            lines.append( "" )
+
+            # ---------- posts ----------
+            if self.posts:
+                lines.append( "## Posts" )
+                for p in self.posts:
+                    url = abs_url( p.get( "permalink", "" ) )
+                    title = p.get( "title", "Untitled" )
+                    lines.append( f"- [{ title }]({ url }): ID { stable_id( url ) }" )
+                lines.append( "" )
+
+            # ---------- pages ----------
+            if self.pages:
+                lines.append( "## Pages" )
+                for pg in self.pages:
+                    url = abs_url( pg.get( "permalink", "" ) )
+                    title = pg.get( "title", "Untitled" )
+                    lines.append( f"- [{ title }]({ url }): ID { stable_id( url ) }" )
+                lines.append( "" )
+
+            # ---------- sitemap ----------
+            lines.append( "## Sitemap" )
+            lines.append( abs_url( "sitemap.xml" ) )
+
+            # ---------- write ----------
+            path = os.path.join( self.output_dir, "llms.txt" )
+            with open( path, "w", encoding = "utf-8" ) as f:
+                f.write( "\n".join( lines ) )
+
+            self.logger.info( f"Generated llms.txt at { path }" )
+
+        except Exception as e:
+            self.logger.error( f"Failed to generate llms.txt: { e }" )
+
     def build_404_page(self):
         """Build and generate the 404 error page for GitHub Pages."""
         try:
@@ -1341,6 +1421,12 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
         # Generate robots.txt based on the flag
         self.generate_robots_txt(mode=getattr(args, 'robots', 'public'))
 
+        # Geneate llms.txt
+        self.generate_llms_txt(
+            site_title=getattr(args, 'site_title', None),
+            site_tagline=getattr(args, 'site_tagline', None)
+        )
+
         # Minify assets if --minify is enabled
         if getattr(args, 'minify', False):
             self.minify_assets()
@@ -1365,6 +1451,8 @@ if __name__ == "__main__":
     parser.add_argument('--posts-per-page', type=int, default=5)
     parser.add_argument('--sort-by', type=str, choices=['date', 'title', 'author', 'order'], default='date')
     parser.add_argument('--fonts', type=str)
+    parser.add_argument('--site-title',   type = str, help = '')
+    parser.add_argument('--site-tagline', type = str, help = '')
     parser.add_argument('--site-url', type=str)
     parser.add_argument('--robots', type=str, choices=['public', 'private'], default='public')
     parser.add_argument('--watch', action='store_true')
