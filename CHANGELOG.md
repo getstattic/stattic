@@ -1,5 +1,19 @@
 # CHANGELOG.md
 
+## 0.3.0
+
+* [📦 NEW: Added generator for llms.txt file](https://github.com/getstattic/stattic/commit/1d54f3c7ff724eb3467979c30bd9de5b1621b8cf)
+* [👌 IMPROVE: Removed 9 unnecessary methods from the Stattic class](https://github.com/getstattic/stattic/commit/e29d68e6aba28731fd50372e67b69548508d639b)
+* [👌 IMPROVE: Updated animated GIF handling speed by converting via gif2webp with Pillow fallback](https://github.com/getstattic/stattic/commit/6411fba18d095c0ddc9ec3ac2c73f860dfcf7555)
+* [👌 IMPROVE: Updated sort-by to include 'order' which works with the front matter](https://github.com/getstattic/stattic/commit/6493127733ba43caec35d9c55efd05e9e3ef55ea)
+* [👌 IMPROVE: Skip default index.html if custom home page is detected; add redirect for missing blog page](https://github.com/getstattic/stattic/commit/728953f5880d9be927ffb54b7cb89be87feffc70)
+* [👌 IMPROVE: Updated /blog/ to redirect to the home page if no custom home or blog templates are included](https://github.com/getstattic/stattic/commit/b968110157e534585e9f88261bcf043f77c41ef6)
+* [👌 IMPROVE: Updated broken link in the demo contact page content](https://github.com/getstattic/stattic/commit/a4db559fab0fbbeba142f61754f929512081b8e7)
+* [👌 IMPROVE: Updated render_template to always include site_url and optionally override relative_path if site_url is set](https://github.com/getstattic/stattic/commit/8c9c45fadb93de0246845b051626b1a350903c57)
+* [👌 IMPROVE: General code cleanup](https://github.com/getstattic/stattic/commit/d85c58b874184af6f5a6ebf98a186e95874ed14a)
+* [📖 DOC: Aded gif2webp to the Requirements section](https://github.com/getstattic/stattic/commit/4c04cde7103afe15196dddff02345129f367638d)
+* [📖 DOC: Updated README with a couple quick fixes](https://github.com/getstattic/stattic/commit/696a37cab6161c0178bfc0e0070d51f523d9f219)
+
 ## 0.2.0
 
 - [🐛 BUG: Fixed Markdown tables rendering as raw HTML](https://github.com/getstattic/stattic/commit/0c25e5da5d2a37ca6b89ab6fe1217395fc713075)
