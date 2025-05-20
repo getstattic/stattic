@@ -6,3 +6,4 @@ templates/*
 logs/*
 autoStattic.py
 __pycache__
+docOut.py

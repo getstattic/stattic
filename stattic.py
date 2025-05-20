@@ -701,7 +701,7 @@ class Stattic:
                     # Extract any actual font file URLs
                     font_urls = re.findall(r'url\((.*?)\) format\((.*?)\);', css_data)
                     if not font_urls:
-                        # no files in the CSS → skip
+                        # no files in the CSS, skip
                         continue
 
                     # Define our output filenames
@@ -734,8 +734,8 @@ class Stattic:
 """
 
             # After generating all @font-face rules, set site-wide usage:
-            #  - first font → body
-            #  - second font (if any) → headings
+            #  - first font - body
+            #  - second font (if any) - headings
             css_content += "\n"
             if self.fonts:
                 body_font = self.fonts[0].strip()
@@ -911,7 +911,7 @@ h1, h2, h3, h4, h5, h6 {{
         if has_custom_blog_template:
             template_name = 'page-blog.html'
         elif not has_custom_home_template:
-            # No custom blog or homepage → redirect /blog to /
+            # No custom blog or homepage - redirect /blog to /
             redirect_html = """<!DOCTYPE html>
     <html lang="en">
     <head>
@@ -1003,11 +1003,11 @@ h1, h2, h3, h4, h5, h6 {{
         - index.html for page 1
         - page/<n>/index.html for pages 2..n
         """
-        # 1) Parse dates for sorting
+        # Parse dates for sorting
         for post in self.posts:
             post['parsed_date'] = self.parse_date(post.get('date', ''))
 
-        # 2) Decide how to sort (by title, author, or date)
+        # Decide how to sort (by title, author, or date)
         if self.sort_by == 'title':
             sort_key = lambda p: p.get('title', '').lower()
             reverse_sort = False
@@ -1025,14 +1025,14 @@ h1, h2, h3, h4, h5, h6 {{
             sort_key = lambda p: p.get('parsed_date', datetime.min)
             reverse_sort = True
 
-        # 3) Sort all posts
+        # Sort all posts
         sorted_posts = sorted(self.posts, key=sort_key, reverse=reverse_sort)
 
         total_posts = len(sorted_posts)
         posts_per_page = self.posts_per_page
         total_pages = (total_posts + posts_per_page - 1) // posts_per_page  # integer ceiling
 
-        # 4) Loop to build each paginated page
+        # Loop to build each paginated page
         for page_num in range(1, total_pages + 1):
             start_idx = (page_num - 1) * posts_per_page
             end_idx = start_idx + posts_per_page
@@ -1079,7 +1079,7 @@ h1, h2, h3, h4, h5, h6 {{
                 parsed_url = urlparse(site_url)
                 site_name = parsed_url.netloc.replace('www.', '')  # Remove 'www.' if present
 
-            # Fix: Avoid adding 'https://' twice, use site_url directly for the feed URL
+            # Avoid adding 'https://' twice, use site_url directly for the feed URL
             feed_url = f"{site_url.rstrip('/')}/feed/index.xml"
 
             # RSS header information with proper escaping
@@ -1320,14 +1320,13 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
             site_title   = site_title   or site_title_from_url( self.site_url )
             site_tagline = site_tagline or ""
 
-            # ---------- helpers ----------
             def abs_url( rel ):  # always ends in “/”
                 return f"{ self.site_url.rstrip('/') }/{ rel.lstrip('/') }"
 
             def stable_id( url ):          # 32-bit deterministic numeric id
                 return int( hashlib.md5( url.encode() ).hexdigest()[:8], 16 )
 
-            # ---------- header ----------
+            # Headers
             lines  = [ f"# { site_title }" ]
             if site_tagline:
                 lines.append( f"> { site_tagline }" )
@@ -1335,7 +1334,7 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
             lines.append( "This site contains structured content formatted for LLM-friendly consumption." )
             lines.append( "" )
 
-            # ---------- posts ----------
+            # Posts
             if self.posts:
                 lines.append( "## Posts" )
                 for p in self.posts:
@@ -1344,7 +1343,7 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
                     lines.append( f"- [{ title }]({ url }): ID { stable_id( url ) }" )
                 lines.append( "" )
 
-            # ---------- pages ----------
+            # Pages
             if self.pages:
                 lines.append( "## Pages" )
                 for pg in self.pages:
@@ -1353,11 +1352,11 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
                     lines.append( f"- [{ title }]({ url }): ID { stable_id( url ) }" )
                 lines.append( "" )
 
-            # ---------- sitemap ----------
+            # Sitemap
             lines.append( "## Sitemap" )
             lines.append( abs_url( "sitemap.xml" ) )
 
-            # ---------- write ----------
+            # Write to llms.txt
             path = os.path.join( self.output_dir, "llms.txt" )
             with open( path, "w", encoding = "utf-8" ) as f:
                 f.write( "\n".join( lines ) )
