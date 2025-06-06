@@ -7,3 +7,4 @@ logs/*
 autoStattic.py
 __pycache__
 docOut.py
+ANALYSIS_SUMMARY.md

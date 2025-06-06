@@ -1,12 +1,14 @@
 import os
-import subprocess, shutil
-import markdown
+import subprocess
+import shutil
 import hashlib
 import yaml
 import argparse
 import logging
 import time
 from datetime import datetime, date
+from typing import Dict, List, Optional, Tuple, Any, Union
+from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, TemplateSyntaxError
 import re
 import requests
@@ -15,107 +17,250 @@ import csscompressor
 import rjsmin
 import mistune
 from xml.sax.saxutils import escape
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 from email.utils import formatdate
 from hashlib import md5
 import xml.etree.ElementTree as ET
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import threading
+from urllib.parse import quote
 
 GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap'
 
-# Global variable for FileProcessor instance in each worker process
-file_processor = None
+# Thread-local storage for FileProcessor instance in each worker process
+_thread_local = threading.local()
 
-def initializer(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug):
-    global file_processor
+def initializer(templates_dir: str, output_dir: str, images_dir: str, categories: Dict,
+               tags: Dict, authors: Dict, pages: List, site_url: Optional[str],
+               content_dir: str, blog_slug: str) -> None:
+    """Initialize FileProcessor for each worker process."""
     session = requests.Session()
-    file_processor = FileProcessor(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=session)
+    session.timeout = 30  # Add timeout for security
+    _thread_local.file_processor = FileProcessor(
+        templates_dir, output_dir, images_dir, categories, tags, authors,
+        pages, site_url, content_dir, blog_slug, session=session
+    )
 
 class FileProcessor:
-    def __init__(self, templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=None):
-        self.templates_dir = templates_dir
-        self.output_dir = output_dir
-        self.images_dir = images_dir
-        self.categories = categories
-        self.tags = tags
-        self.authors = authors
-        self.pages = pages
-        self.site_url = site_url
-        self.content_dir = content_dir
+    """Handles processing of individual markdown files and images."""
+
+    def __init__(self, templates_dir: str, output_dir: str, images_dir: str,
+                 categories: Dict, tags: Dict, authors: Dict, pages: List,
+                 site_url: Optional[str], content_dir: str, blog_slug: str,
+                 session: Optional[requests.Session] = None):
+        # Validate required directories
+        if not os.path.isdir(templates_dir):
+            raise FileNotFoundError(f"Templates directory '{templates_dir}' does not exist.")
+        if not os.path.isdir(content_dir):
+            raise FileNotFoundError(f"Content directory '{content_dir}' does not exist.")
+
+        self.templates_dir = Path(templates_dir).resolve()
+        self.output_dir = Path(output_dir).resolve()
+        self.images_dir = Path(images_dir).resolve()
+        self.content_dir = Path(content_dir).resolve()
+        self.categories = categories or {}
+        self.tags = tags or {}
+        self.authors = authors or {}
+        self.pages = pages or []
+        self.site_url = site_url.rstrip('/') if site_url else None
         self.blog_slug = blog_slug
+
+        # Configure session with security settings
         self.session = session or requests.Session()
+        self.session.timeout = 30
+        self.session.headers.update({'User-Agent': 'Stattic/1.0'})
+
         self.logger = logging.getLogger('FileProcessor')
 
-        self.env = Environment(loader=FileSystemLoader(templates_dir))
-        self.markdown_parser = self.create_markdown_parser()
+        # Ensure directories exist
+        os.makedirs(self.images_dir, exist_ok=True)
 
-    def create_markdown_parser(self):
+        try:
+            self.env = Environment(loader=FileSystemLoader(str(self.templates_dir)))
+            self.markdown_parser = self.create_markdown_parser()
+        except Exception as e:
+            self.logger.error(f"Failed to initialize FileProcessor: {e}")
+            raise
+
+    def create_markdown_parser(self) -> mistune.Markdown:
         """Create a Mistune markdown parser with a custom renderer."""
         class CustomRenderer(mistune.HTMLRenderer):
             def __init__(self):
                 super().__init__(escape=False)
-            def block_code(self, code, info=None):
+
+            def block_code(self, code: str, info: Optional[str] = None) -> str:
                 escaped_code = mistune.escape(code)
-                return '<pre style="white-space: pre-wrap;"><code>{}</code></pre>'.format(escaped_code)
+                return f'<pre style="white-space: pre-wrap;"><code>{escaped_code}</code></pre>'
+
         return mistune.create_markdown(
             renderer=CustomRenderer(),
             plugins=['table', 'task_lists', 'strikethrough']
         )
 
-    def markdown_filter(self, text):
+    def markdown_filter(self, text: str) -> str:
         """Convert markdown text to HTML."""
+        if not text:
+            return ""
         return self.markdown_parser(text)
 
-    def parse_date(self, date_str):
-        """Parse a date string."""
+    def parse_date(self, date_str: Union[str, datetime, date, None]) -> datetime:
+        """Parse a date string with comprehensive format support."""
         if isinstance(date_str, datetime):
             return date_str
         elif isinstance(date_str, date):
             return datetime(date_str.year, date_str.month, date_str.day)
-        elif isinstance(date_str, str):
-            for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%d', '%b %d, %Y']:
+        elif isinstance(date_str, str) and date_str.strip():
+            date_formats = [
+                '%Y-%m-%dT%H:%M:%S',
+                '%Y-%m-%dT%H:%M:%S.%f',
+                '%Y-%m-%d %H:%M:%S',
+                '%Y-%m-%d',
+                '%b %d, %Y',
+                '%B %d, %Y',
+                '%d/%m/%Y',
+                '%m/%d/%Y'
+            ]
+            for fmt in date_formats:
                 try:
-                    return datetime.strptime(date_str, fmt)
+                    return datetime.strptime(date_str.strip(), fmt)
                 except ValueError:
                     continue
+            self.logger.warning(f"Unable to parse date: {date_str}")
         return datetime.min
 
-    def download_image(self, url, output_dir):
-        """Download an image and save it locally."""
-        if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
-            return None
+    def _is_safe_url(self, url: str) -> bool:
+        """Validate URL for security."""
         try:
-            if url.startswith('http'):
-                response = self.session.get(url)
-                response.raise_for_status()
-                image_name = os.path.basename(url)
-                image_path = os.path.join(output_dir, image_name)
-                with open(image_path, 'wb') as image_file:
-                    image_file.write(response.content)
-                return image_path
-            return None
-        except requests.exceptions.RequestException:
+            parsed = urlparse(url)
+            # Only allow http/https
+            if parsed.scheme not in ('http', 'https'):
+                return False
+            # Prevent localhost/private IP access
+            if parsed.hostname in ('localhost', '127.0.0.1', '0.0.0.0'):
+                return False
+            return True
+        except Exception:
+            return False
+
+    def _is_valid_image_extension(self, url: str) -> bool:
+        """Check if URL has valid image extension."""
+        valid_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.svg')
+        return url.lower().endswith(valid_extensions)
+
+    def download_image(self, url: str, output_dir: Union[str, Path]) -> Optional[str]:
+        """Download an image and save it locally with security checks."""
+        if not url or not self._is_valid_image_extension(url):
             return None
 
-    def convert_image_to_webp(self, image_path):
+        if not self._is_safe_url(url):
+            self.logger.warning(f"Unsafe URL blocked: {url}")
+            return None
+
         try:
+            if url.startswith(('http://', 'https://')):
+                response = self.session.get(url, stream=True)
+                response.raise_for_status()
+
+                # Check content type
+                content_type = response.headers.get('content-type', '').lower()
+                if not content_type.startswith('image/'):
+                    self.logger.warning(f"Invalid content type for {url}: {content_type}")
+                    return None
+
+                # Limit file size (10MB max)
+                content_length = response.headers.get('content-length')
+                if content_length and int(content_length) > 10 * 1024 * 1024:
+                    self.logger.warning(f"Image too large: {url}")
+                    return None
+
+                # Sanitize filename
+                image_name = os.path.basename(urlparse(url).path)
+                if not image_name or '.' not in image_name:
+                    image_name = f"image_{hashlib.md5(url.encode()).hexdigest()[:8]}.jpg"
+
+                # Ensure safe filename
+                image_name = re.sub(r'[^\w\-_\.]', '_', image_name)
+                image_path = os.path.join(output_dir, image_name)
+
+                with open(image_path, 'wb') as image_file:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        image_file.write(chunk)
+
+                return image_path
+            return None
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Failed to download image {url}: {e}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error downloading {url}: {e}")
+            return None
+
+    def convert_image_to_webp(self, image_path: Union[str, Path]) -> Optional[str]:
+        """Convert image to WebP format with proper error handling."""
+        if not os.path.exists(image_path):
+            self.logger.error(f"Image file not found: {image_path}")
+            return None
+
+        try:
+            image_path = str(image_path)
             ext = os.path.splitext(image_path)[1].lower()
             webp_path = image_path.rsplit('.', 1)[0] + '.webp'
 
             if ext == ".gif":
-                # Use gif2webp: multithreaded & fast
-                cmd = ["gif2webp", "-mixed", "-mt", "-lossless", image_path, "-o", webp_path]
-                result = subprocess.run(cmd, capture_output=True)
-                if result.returncode != 0:
-                    self.logger.error(f"gif2webp failed: {result.stderr.decode()}")
-                    return None
+                # Use gif2webp with security checks
+                if not shutil.which("gif2webp"):
+                    self.logger.warning("gif2webp not found, falling back to Pillow")
+                    img = Image.open(image_path)
+                    img.save(webp_path, "WEBP", quality=85, method=6)
+                else:
+                    # Validate input path to prevent command injection
+                    if not os.path.isfile(image_path):
+                        self.logger.error(f"Invalid image path: {image_path}")
+                        return None
+
+                    cmd = ["gif2webp", "-mixed", "-mt", "-lossless", image_path, "-o", webp_path]
+                    try:
+                        result = subprocess.run(
+                            cmd,
+                            capture_output=True,
+                            timeout=60,  # Prevent hanging
+                            check=False
+                        )
+                        if result.returncode != 0:
+                            error_msg = result.stderr.decode('utf-8', errors='ignore')
+                            self.logger.error(f"gif2webp failed: {error_msg}")
+                            return None
+                    except subprocess.TimeoutExpired:
+                        self.logger.error(f"gif2webp timeout for {image_path}")
+                        return None
             else:
                 # Pillow for PNG/JPG etc.
-                img = Image.open(image_path)
-                img.save(webp_path, "WEBP", quality=85, method=6)
+                try:
+                    with Image.open(image_path) as img:
+                        # Validate image
+                        img.verify()
 
-            os.remove(image_path)
-            return webp_path
+                    # Reopen for processing (verify closes the file)
+                    with Image.open(image_path) as img:
+                        # Convert RGBA to RGB if necessary
+                        if img.mode in ('RGBA', 'LA', 'P'):
+                            img = img.convert('RGB')
+                        img.save(webp_path, "WEBP", quality=85, method=6, optimize=True)
+                except Exception as e:
+                    self.logger.error(f"Pillow conversion failed for {image_path}: {e}")
+                    return None
+
+            # Verify the WebP file was created successfully
+            if os.path.exists(webp_path) and os.path.getsize(webp_path) > 0:
+                try:
+                    os.remove(image_path)
+                except OSError as e:
+                    self.logger.warning(f"Could not remove original image {image_path}: {e}")
+                return webp_path
+            else:
+                self.logger.error(f"WebP conversion failed - output file invalid: {webp_path}")
+                return None
+
         except Exception as e:
             self.logger.error(f"Failed to convert {image_path}: {e}")
             return None
@@ -455,46 +600,71 @@ def site_title_from_url( url ):
     return domain
 
 class Stattic:
-    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None, site_url=None, assets_dir=None, blog_slug='blog'):
+    """Main static site generator class."""
+
+    def __init__(self, content_dir: str = 'content', templates_dir: str = 'templates',
+                 output_dir: str = 'output', posts_per_page: int = 5,
+                 sort_by: str = 'date', fonts: Optional[List[str]] = None,
+                 site_url: Optional[str] = None, assets_dir: Optional[str] = None,
+                 blog_slug: str = 'blog'):
+
+        # Validate required directories first
+        if not os.path.isdir(templates_dir):
+            raise FileNotFoundError(f"Templates directory '{templates_dir}' does not exist.")
+        if not os.path.isdir(content_dir):
+            raise FileNotFoundError(f"Content directory '{content_dir}' does not exist.")
+
+        # Configure session with security settings
         self.session = requests.Session()
-        self.content_dir = content_dir
-        self.posts_dir = os.path.join(content_dir, 'posts')
-        self.pages_dir = os.path.join(content_dir, 'pages')
-        self.templates_dir = templates_dir
-        self.output_dir = output_dir
+        self.session.timeout = 30
+        self.session.headers.update({'User-Agent': 'Stattic/1.0'})
+
+        # Initialize paths
+        self.content_dir = Path(content_dir).resolve()
+        self.posts_dir = self.content_dir / 'posts'
+        self.pages_dir = self.content_dir / 'pages'
+        self.templates_dir = Path(templates_dir).resolve()
+        self.output_dir = Path(output_dir).resolve()
         self.blog_slug = blog_slug
+
+        # Setup logging early
         self.logger = self.setup_logging()
-        self.images_dir = os.path.join(output_dir, 'images')
-        self.assets_src_dir = assets_dir or os.path.join(os.path.dirname(__file__), 'assets')
-        self.assets_output_dir = os.path.join(output_dir, 'assets')
+        self.logger.info(f"Using templates directory: {self.templates_dir}")
+
+        # Initialize directories
+        self.images_dir = self.output_dir / 'images'
+        self.assets_src_dir = Path(assets_dir) if assets_dir else Path(__file__).parent / 'assets'
+        self.assets_output_dir = self.output_dir / 'assets'
+
+        # Ensure required directories exist
+        os.makedirs(self.posts_dir, exist_ok=True)
+        os.makedirs(self.pages_dir, exist_ok=True)
+        os.makedirs(self.images_dir, exist_ok=True)
+
+        # Initialize configuration
         self.fonts = fonts if fonts else ['Quicksand']
-        self.env = Environment(loader=FileSystemLoader(self.templates_dir))
         self.posts = []
         self.pages = []
         self.posts_generated = 0
         self.pages_generated = 0
-        self.posts_per_page = posts_per_page
+        self.posts_per_page = max(1, posts_per_page)  # Ensure positive value
         self.sort_by = sort_by
         self.categories = {}
         self.tags = {}
         self.authors = {}
         self.image_conversion_count = 0
         self.site_url = site_url.rstrip('/') if site_url else None
-        if not os.path.isdir(self.templates_dir):
-            raise FileNotFoundError(f"Templates directory '{self.templates_dir}' does not exist.")
+
+        # Load data
         self.load_categories_and_tags()
         self.load_authors()
-        os.makedirs(self.images_dir, exist_ok=True)
 
-        # Validate templates directory
-        if not os.path.isdir(self.templates_dir):
-            raise FileNotFoundError(f"Templates directory '{self.templates_dir}' does not exist.")
-
-        # Log resolved paths
-        self.logger.info(f"Using templates directory: {self.templates_dir}")
-
-        # Ensure images directory exists
-        os.makedirs(self.images_dir, exist_ok=True)
+        # Initialize template environment
+        try:
+            self.env = Environment(loader=FileSystemLoader(str(self.templates_dir)))
+        except Exception as e:
+            self.logger.error(f"Failed to initialize template environment: {e}")
+            raise
 
         # Add file processor
         self.file_processor = FileProcessor(
@@ -1430,16 +1600,19 @@ Sitemap: {self.site_url.rstrip('/')}/sitemap.xml
         if getattr(args, 'minify', False):
             self.minify_assets()
 
-def resolve_output_path(output_dir):
+def resolve_output_path(output_dir: str) -> str:
     """If the output path starts with "~/", expand it to the user's home directory"""
     if output_dir.startswith("~/"):
         output_dir = os.path.expanduser(output_dir)
     return output_dir
 
-def process_file(file_path, is_page):
-    """Process a file using the global FileProcessor."""
-    global file_processor
-    return file_processor.process(file_path, is_page)
+def process_file(file_path: str, is_page: bool) -> Dict[str, Any]:
+    """Process a file using the thread-local FileProcessor."""
+    try:
+        return _thread_local.file_processor.process(file_path, is_page)
+    except AttributeError:
+        # Fallback if thread-local not initialized
+        raise RuntimeError("FileProcessor not initialized in worker process")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Stattic - Static Site Generator')
