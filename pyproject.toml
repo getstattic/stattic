@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stattic"
+version = "1.0.0"
+authors = [
+    {name = "Robert DeVore", email = "me@robertdevore.com"},
+]
+description = "A simple yet powerful static site generator written in Python"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Site Management",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Text Processing :: Markup :: HTML",
+]
+keywords = ["static site generator", "markdown", "jinja2", "blog", "website"]
+dependencies = [
+    "markdown==3.4.1",
+    "Jinja2>=3.1.6",
+    "pyyaml==6.0",
+    "watchdog==2.1.9",
+    "requests==2.32.0",
+    "Pillow==10.3.0",
+    "tqdm==4.66.3",
+    "csscompressor==0.9.5",
+    "rjsmin==1.2.0",
+    "mistune==2.0.3",
+]
+
+[project.urls]
+Homepage = "https://github.com/getstattic/stattic"
+"Bug Reports" = "https://github.com/getstattic/stattic/issues"
+"Source" = "https://github.com/getstattic/stattic"
+"Documentation" = "https://docs.stattic.site"
+
+[project.scripts]
+stattic = "stattic_pkg.cli:main"
+
+[tool.setuptools]
+packages = ["stattic_pkg", "stattic_pkg.templates"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+stattic_pkg = ["templates/*.html", "templates/**/*.html"]

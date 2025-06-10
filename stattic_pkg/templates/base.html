@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ ((seo_title or title) ~ ' | Stattic') if (seo_title or title) else 'Stattic' }}</title>
+    <title>{{ ((seo_title or title) ~ ' | ' ~ (site_title or 'Stattic')) if (seo_title or title) else (site_title or 'Stattic') }}</title>
     <meta name="description" content="{% if seo_description %}{{ seo_description }}{% else %}Stattic is a fast, lightweight static site generator that optimizes images, supports custom fonts, and easily integrates with GitHub Pages for quick, SEO-friendly site deployment without the bloat of traditional CMS platforms like WordPress.{% endif %}">
     <meta name="keywords" content="{% if seo_keywords %}{{ seo_keywords }}{% else %}SSG, Static Site Generator{% endif %}">
     <meta name="author" content="{% if author %}{{ author }}{% else %}Robert DeVore{% endif %}">
@@ -21,7 +21,7 @@
     <!-- Open Graph Tags -->
     <meta property="og:title" content="{% if seo_title %}{{ seo_title }}{% else %}{{ title }}{% endif %}">
     <meta property="og:description" content="{% if seo_description %}{{ seo_description }}{% else %}Stattic is a fast, lightweight static site generator.{% endif %}">
-    <meta property="og:url" content="{% if canonical %}{{ canonical }}{% else %}{{ site_url }}/{{ page.permalink | trim('/') }}{% endif %}">
+    <meta property="og:url" content="{% if canonical %}{{ canonical }}{% elif page and page.permalink %}{{ site_url }}/{{ page.permalink | trim('/') }}{% elif site_url %}{{ site_url }}{% endif %}">
     <meta property="og:type" content="website">
     {% if featured_image %}
     <meta property="og:image" content="{{ relative_path }}{{ featured_image }}">
@@ -45,7 +45,10 @@
 
 <header id="navigation">
     <div class="container max-w-screen-xl m-auto py-6 px-4 flex justify-between items-center">
-        <h2 class="text-3xl font-bold quicksand-700"><a href="{{ relative_path }}" class="text-links">Stattic</a></h2>
+        <h2 class="text-3xl font-bold quicksand-700"><a href="{{ relative_path }}" class="text-links">{{ site_title or 'Stattic' }}</a></h2>
+        {% if site_tagline %}
+        <p class="text-sm text-gray-400 italic hidden md:block">{{ site_tagline }}</p>
+        {% endif %}
         <nav>
             <ul class="flex space-x-6">
                 {% for page in pages %}

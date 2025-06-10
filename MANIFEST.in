@@ -1,0 +1,9 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include requirements.txt
+recursive-include stattic_pkg/templates *.html
+recursive-include stattic_pkg *.py
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .DS_Store

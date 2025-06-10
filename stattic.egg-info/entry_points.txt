@@ -1,0 +1,2 @@
+[console_scripts]
+stattic = stattic_pkg.cli:main

@@ -4,6 +4,8 @@ content/*
 output/*
 templates/*
 logs/*
+tests/*
 autoStattic.py
 __pycache__
 docOut.py
+dummyContent.py

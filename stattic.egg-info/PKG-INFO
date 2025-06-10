@@ -1,3 +1,46 @@
+Metadata-Version: 2.4
+Name: stattic
+Version: 1.0.0
+Summary: A simple yet powerful static site generator written in Python
+Home-page: https://github.com/getstattic/stattic
+Author: Robert DeVore
+Author-email: Robert DeVore <me@robertdevore.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/getstattic/stattic
+Project-URL: Bug Reports, https://github.com/getstattic/stattic/issues
+Project-URL: Source, https://github.com/getstattic/stattic
+Project-URL: Documentation, https://docs.stattic.site
+Keywords: static site generator,markdown,jinja2,blog,website
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet :: WWW/HTTP :: Site Management
+Classifier: Topic :: Software Development :: Code Generators
+Classifier: Topic :: Text Processing :: Markup :: HTML
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: markdown==3.4.1
+Requires-Dist: Jinja2>=3.1.6
+Requires-Dist: pyyaml==6.0
+Requires-Dist: watchdog==2.1.9
+Requires-Dist: requests==2.32.0
+Requires-Dist: Pillow==10.3.0
+Requires-Dist: tqdm==4.66.3
+Requires-Dist: csscompressor==0.9.5
+Requires-Dist: rjsmin==1.2.0
+Requires-Dist: mistune==2.0.3
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
 # Stattic - Decentralized Publishing
 
 **Stattic** is a Python-based static site generator that converts Markdown content into static HTML websites using Jinja2 templates. It supports features such as posts, tags, categories, authors, SEO metadata, image optimization, and asset minification, making it ideal for creating fast, lightweight, and SEO-friendly websites.
