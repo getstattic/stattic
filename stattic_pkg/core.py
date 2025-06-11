@@ -601,8 +601,8 @@ class Stattic:
         
         css_content = "/* Google Fonts - Downloaded for offline use */\n\n"
         
-        # Standard Google Font weights
-        font_weights = [300, 400, 500, 600, 700]
+        # Standard Google Font weights - reduced for performance
+        font_weights = [400, 700]  # Only download regular and bold
         
         for font in self.fonts:
             try:
@@ -686,7 +686,7 @@ body {{
             return False
         
         # Check if all expected font files exist
-        font_weights = [300, 400, 500, 600, 700]
+        font_weights = [400, 700]  # Match the download weights
         for font in self.fonts:
             font_slug = font.strip().lower().replace(' ', '-')
             for weight in font_weights:
@@ -928,7 +928,7 @@ body {{
         # Based on performance testing, multiprocessing becomes beneficial around 12 files
         total_files = len(tasks)
         if total_files >= 12:
-            self.logger.info(f"Using multiprocessing for {total_files} files with {min(os.cpu_count(), len(tasks), 16)} workers")
+            self.logger.info(f"Using multiprocessing for {total_files} files with {os.cpu_count()} workers")
             self._build_with_multiprocessing(tasks)
         else:
             self.logger.info(f"Using single-threaded processing for {total_files} files")
@@ -969,8 +969,8 @@ body {{
         post_files = [file_path for file_path, is_page in tasks if not is_page]
         page_files = [file_path for file_path, is_page in tasks if is_page]
         
-        # Use same worker calculation as original: min of CPU cores or total file count
-        optimal_workers = min(os.cpu_count(), len(post_files) + len(page_files))
+        # Use same worker calculation as original: all available CPU cores
+        optimal_workers = os.cpu_count()
         
         with ProcessPoolExecutor(
             max_workers=optimal_workers,
@@ -1207,12 +1207,18 @@ body {{
                 'index.html',
                 posts=page_posts,
                 pages=self.pages,
-                page={},
+                page={'title': 'Home' if page_num == 1 else f'Page {page_num}'},
                 relative_path=self.calculate_relative_path(page_output_dir),
                 current_page=page_num,
                 total_pages=total_pages,
                 page_numbers=pagination_links,
-                site_url=self.site_url
+                site_url=self.site_url,
+                site_title=self.site_title,
+                site_tagline=self.site_tagline,
+                categories=self.categories,
+                tags=self.tags,
+                authors=self.authors,
+                minify=False
             )
 
             output_path = os.path.join(page_output_dir, 'index.html')
@@ -1228,37 +1234,11 @@ body {{
         if not site_name:
             site_name = site_title_from_url(site_url)
 
-        posts_dir = os.path.join(self.content_dir, 'posts')
-        post_files = self.get_markdown_files(posts_dir)
-        
-        if not post_files:
+        if not self.posts:
             return
 
-        # Parse recent posts
-        posts = []
-        for post_file in post_files:
-            with open(post_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            parts = content.split('---', 2)
-            if len(parts) >= 3:
-                metadata = yaml.safe_load(parts[1])
-                markdown_content = parts[2].strip()
-                
-                # Convert markdown to HTML for RSS
-                html_content = self.markdown_filter(markdown_content)
-                
-                metadata['content'] = html_content
-                # Ensure slug is available - use custom_url first, then derive from filename
-                if not metadata.get('custom_url') and not metadata.get('slug'):
-                    metadata['slug'] = os.path.splitext(os.path.basename(post_file))[0]
-                
-                if metadata.get('date'):
-                    metadata['date'] = self.parse_date(metadata['date'])
-                posts.append(metadata)
-
-        posts.sort(key=lambda x: x.get('date', datetime.min), reverse=True)
-        recent_posts = posts[:20]  # Include 20 most recent posts
+        # Use already-processed posts data instead of re-reading files
+        recent_posts = sorted(self.posts, key=lambda x: self.parse_date(x.get('date', '')), reverse=True)[:20]
 
         # Generate RSS XML
         rss_content = f'''<?xml version="1.0" encoding="UTF-8"?>
@@ -1272,35 +1252,25 @@ body {{
 
         for post in recent_posts:
             title = escape(post.get('title', 'Untitled'))
-            # Use custom_url if available, otherwise derive slug from filename
-            slug = post.get('custom_url') or post.get('slug', 'untitled')
-            link = f"{site_url.rstrip('/')}/{self.blog_slug}/{slug}/"
+            # Use permalink that's already computed
+            link = f"{site_url.rstrip('/')}/{post.get('permalink', '')}"
             
-            # Handle description: prefer excerpt, otherwise use clean text from content
-            if post.get('excerpt'):
-                raw_description = post.get('excerpt')
+            # Use excerpt if available, otherwise truncate content
+            if 'excerpt' in post:
+                raw_description = post['excerpt']
             else:
-                # Use content and create excerpt
-                full_content = post.get('content', '')
-                # Decode HTML entities first, then strip tags, then take excerpt
-                import html as html_module
-                decoded_content = html_module.unescape(full_content)
-                clean_content = re.sub(r'<.*?>', '', decoded_content)
-                # Take first 300 characters for better excerpts
-                words = clean_content.split()
-                if len(words) > 50:
-                    raw_description = ' '.join(words[:50]) + '...'
-                else:
-                    raw_description = clean_content
+                # Use metadata if available for excerpt generation
+                raw_description = post.get('metadata', {}).get('excerpt', post.get('title', 'No excerpt available'))
             
             # Clean and escape the description for XML
             import html as html_module
-            clean_description = html_module.unescape(raw_description)
+            clean_description = html_module.unescape(str(raw_description))
             clean_description = re.sub(r'<.*?>', '', clean_description)  # Remove any HTML tags
             clean_description = re.sub(r'\s+', ' ', clean_description)  # Normalize whitespace
             description = escape(clean_description.strip())
             
-            pub_date = formatdate(post.get('date', datetime.now()).timestamp())
+            post_date = self.parse_date(post.get('date', ''))
+            pub_date = formatdate(post_date.timestamp()) if post_date != datetime.min else formatdate()
 
             rss_content += f'''
 <item>
@@ -1338,37 +1308,17 @@ body {{
         blog_url = f"{site_url.rstrip('/')}/{self.blog_slug}/"
         sitemap_content += self.format_xml_sitemap_entry(blog_url, datetime.now())
 
-        # Add posts
-        posts_dir = os.path.join(self.content_dir, 'posts')
-        post_files = self.get_markdown_files(posts_dir)
-        
-        for post_file in post_files:
-            with open(post_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            parts = content.split('---', 2)
-            if len(parts) >= 3:
-                metadata = yaml.safe_load(parts[1])
-                slug = metadata.get('slug', os.path.splitext(os.path.basename(post_file))[0])
-                post_url = f"{site_url.rstrip('/')}/{self.blog_slug}/{slug}/"
-                post_date = self.parse_date(metadata.get('date'))
-                sitemap_content += self.format_xml_sitemap_entry(post_url, post_date)
+        # Add posts using already-processed data
+        for post in self.posts:
+            post_url = f"{site_url.rstrip('/')}/{post.get('permalink', '')}"
+            post_date = self.parse_date(post.get('date', ''))
+            sitemap_content += self.format_xml_sitemap_entry(post_url, post_date)
 
-        # Add pages
-        pages_dir = os.path.join(self.content_dir, 'pages')
-        page_files = self.get_markdown_files(pages_dir)
-        
-        for page_file in page_files:
-            with open(page_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            parts = content.split('---', 2)
-            if len(parts) >= 3:
-                metadata = yaml.safe_load(parts[1])
-                slug = metadata.get('slug', os.path.splitext(os.path.basename(page_file))[0])
-                page_url = f"{site_url.rstrip('/')}/{slug}/"
-                page_date = self.parse_date(metadata.get('date', datetime.now()))
-                sitemap_content += self.format_xml_sitemap_entry(page_url, page_date)
+        # Add pages using already-loaded data
+        for page in self.pages:
+            page_url = f"{site_url.rstrip('/')}{page.get('permalink', '/')}"
+            page_date = self.parse_date(page.get('date', datetime.now()))
+            sitemap_content += self.format_xml_sitemap_entry(page_url, page_date)
 
         sitemap_content += '</urlset>'
 
@@ -1421,73 +1371,40 @@ This site contains structured content formatted for LLM-friendly consumption.
 
 """
         
-        # Add blog posts content
-        posts_dir = os.path.join(self.content_dir, 'posts')
-        post_files = self.get_markdown_files(posts_dir)
-        
-        if post_files:
+        # Add blog posts content using already-processed data
+        if self.posts:
             llms_content += "## Posts\n"
             
-            # Parse posts
-            posts = []
-            for post_file in post_files:
-                with open(post_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                
-                parts = content.split('---', 2)
-                if len(parts) >= 3:
-                    metadata = yaml.safe_load(parts[1])
-                    markdown_content = parts[2].strip()
-                    
-                    # Get slug for URL
-                    slug = metadata.get('custom_url') or metadata.get('slug', os.path.splitext(os.path.basename(post_file))[0])
-                    title = metadata.get('title', 'Untitled')
-                    
-                    # Generate unique ID for the post (hash of title + content)
-                    content_hash = abs(hash(title + markdown_content)) % (10**10)
-                    
-                    posts.append({
-                        'title': title,
-                        'slug': slug,
-                        'content': markdown_content,
-                        'date': self.parse_date(metadata.get('date')) if metadata.get('date') else None,
-                        'id': content_hash
-                    })
-            
             # Sort posts by date
-            posts.sort(key=lambda x: x.get('date', datetime.min), reverse=True)
+            sorted_posts = sorted(self.posts, key=lambda x: self.parse_date(x.get('date', '')), reverse=True)
             
             # Add each post
-            for post in posts:
-                url = f"{self.site_url}/{self.blog_slug}/{post['slug']}/"
-                llms_content += f"- [{post['title']}]({url}): ID {post['id']}\n"
+            for post in sorted_posts:
+                title = post.get('title', 'Untitled')
+                permalink = post.get('permalink', '')
+                url = f"{self.site_url}/{permalink}"
+                
+                # Generate unique ID for the post
+                content_hash = abs(hash(title + permalink)) % (10**10)
+                
+                llms_content += f"- [{title}]({url}): ID {content_hash}\n"
             
             llms_content += "\n"
+                    
         
-        # Add pages content
-        pages_dir = os.path.join(self.content_dir, 'pages')
-        page_files = self.get_markdown_files(pages_dir)
-        
-        if page_files:
+        # Add pages content using already-loaded data
+        if self.pages:
             llms_content += "## Pages\n"
             
-            for page_file in page_files:
-                with open(page_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
+            for page in self.pages:
+                title = page.get('title', 'Untitled')
+                permalink = page.get('permalink', '/')
+                url = f"{self.site_url}{permalink}"
                 
-                parts = content.split('---', 2)
-                if len(parts) >= 3:
-                    metadata = yaml.safe_load(parts[1])
-                    markdown_content = parts[2].strip()
-                    
-                    title = metadata.get('title', os.path.splitext(os.path.basename(page_file))[0])
-                    slug = metadata.get('custom_url') or metadata.get('slug', os.path.splitext(os.path.basename(page_file))[0])
-                    
-                    # Generate unique ID for the page
-                    content_hash = abs(hash(title + markdown_content)) % (10**10)
-                    
-                    url = f"{self.site_url}/{slug}/"
-                    llms_content += f"- [{title}]({url}): ID {content_hash}\n"
+                # Generate unique ID for the page
+                content_hash = abs(hash(title + permalink)) % (10**10)
+                
+                llms_content += f"- [{title}]({url}): ID {content_hash}\n"
             
             llms_content += "\n"
         
