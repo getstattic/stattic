@@ -11,5 +11,6 @@ __author__ = "Robert DeVore"
 __email__ = "me@robertdevore.com"
 
 from .core import Stattic, FileProcessor
+from .settings import StatticSettings
 
-__all__ = ['Stattic', 'FileProcessor']
+__all__ = ['Stattic', 'FileProcessor', 'StatticSettings']

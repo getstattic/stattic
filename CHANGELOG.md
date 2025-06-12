@@ -1,37 +1,5 @@
 # CHANGELOG.md
 
-## 1.0.0 - Initial PyPI Release
-
-### 🎉 **Major Features:**
-* [📦 NEW: Complete static site generator with PyPI distribution](https://github.com/getstattic/stattic/commit/initial-release)
-* [📦 NEW: Command-line interface with comprehensive options](https://github.com/getstattic/stattic/commit/cli-implementation)
-* [📦 NEW: Multiprocessing support for fast large-scale site generation](https://github.com/getstattic/stattic/commit/multiprocessing)
-* [📦 NEW: Google Fonts integration with local caching](https://github.com/getstattic/stattic/commit/google-fonts)
-* [📦 NEW: Automatic image optimization and WebP conversion](https://github.com/getstattic/stattic/commit/image-optimization)
-* [📦 NEW: RSS feed generation](https://github.com/getstattic/stattic/commit/rss-feed)
-* [📦 NEW: XML sitemap generation](https://github.com/getstattic/stattic/commit/xml-sitemap)
-* [📦 NEW: LLMS.txt generation for LLM crawlers](https://github.com/getstattic/stattic/commit/llms-txt)
-* [📦 NEW: Pagination support for blog posts](https://github.com/getstattic/stattic/commit/pagination)
-
-### ⚡ **Performance Optimizations:**
-* [⚡ PERFORMANCE: Optimized multiprocessing threshold for better small workload performance](https://github.com/getstattic/stattic/commit/performance-optimization)
-* [⚡ PERFORMANCE: Eliminated redundant file parsing in RSS feed generation](https://github.com/getstattic/stattic/commit/performance-optimization)
-* [⚡ PERFORMANCE: Optimized XML sitemap generation through data reuse](https://github.com/getstattic/stattic/commit/performance-optimization)
-* [⚡ PERFORMANCE: Optimized LLMS.txt generation through data reuse](https://github.com/getstattic/stattic/commit/performance-optimization)
-* [⚡ PERFORMANCE: Reduced Google Fonts download overhead](https://github.com/getstattic/stattic/commit/performance-optimization)
-
-### 🐛 **Bug Fixes:**
-* [🐛 FIX: Fixed template context variables for index page generation](https://github.com/getstattic/stattic/commit/template-context-fix)
-* [🐛 FIX: Fixed Markdown tables rendering as raw HTML](https://github.com/getstattic/stattic/commit/markdown-tables-fix)
-* [🐛 FIX: Fixed session not found during Google Font download](https://github.com/getstattic/stattic/commit/session-fix)
-
-### 📊 **Performance Results:**
-- **Small workloads (7 files):** Uses multiprocessing for optimal speed
-- **Large workloads (1000+ files):** Efficiently processes with all CPU cores
-- **RSS generation:** 78x speed improvement through data reuse
-- **XML sitemap:** 21x speed improvement through data reuse
-- **LLMS.txt:** 34x speed improvement through data reuse
-
 ## 0.3.0
 
 * [📦 NEW: Added generator for llms.txt file](https://github.com/getstattic/stattic/commit/1d54f3c7ff724eb3467979c30bd9de5b1621b8cf)

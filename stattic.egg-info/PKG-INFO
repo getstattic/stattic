@@ -135,6 +135,60 @@ After installation, you can use the `stattic` command from anywhere in your term
 
 ## Usage
 
+### **Configuration File (Recommended)**
+
+Stattic supports configuration files to avoid typing command-line arguments repeatedly. Create a configuration file in your project directory:
+
+```bash
+stattic --init yml
+```
+
+This creates a `stattic.yml` file with all available settings:
+
+```yaml
+# Stattic Configuration File
+# Configure your static site generator settings here
+
+# Site information
+site_url: https://demo.stattic.site
+site_title: My Static Site
+site_tagline: Built with Stattic
+
+# Build settings
+output: output
+content: content
+templates: templates
+assets: assets
+blog_slug: blog
+
+# Content settings
+posts_per_page: 5
+sort_by: date  # date, title, author, order
+
+# Styling
+fonts:
+  - Quicksand
+
+# SEO settings
+robots: public  # public or private
+
+# Development settings
+minify: true
+watch: false
+```
+
+After creating your configuration file, simply run:
+
+```bash
+stattic
+```
+
+Stattic will automatically load settings from:
+- `stattic.yml` or `stattic.yaml` (YAML format)
+- `stattic.json` (JSON format)
+
+Command-line arguments still work and will override configuration file settings.
+
 ### **Basic Usage**
 
 After installation, you can use the `stattic` command from anywhere in your terminal:
@@ -402,32 +456,23 @@ Stattic provides detailed logs of the build process, including performance metri
 We welcome contributions! To contribute:
 
 1. **Fork the Repository:**
-
 ```
 git clone https://github.com/getstattic/stattic.git
 cd stattic
 ```
-
 2. **Create a New Branch:**
-
 ```
 git checkout -b feature-branch
 ```
-
 3. **Make Your Changes**: Implement your features or fixes.
-
 4. **Commit Your Changes:**
-
 ```
 git commit -m "Add feature XYZ"
 ```
-
 5. **Push to Your Fork:**
-
 ```
 git push origin feature-branch
 ```
-
 6. **Submit a Pull Request**: Open a pull request detailing your changes.
 
 * * *
@@ -441,14 +486,10 @@ This project is licensed under the MIT License. See the [LICENSE](/LICENSE) file
 ## Additional Notes (01/06/2025)
 
 1. **Watch Mode Implementation:**
-
     - Currently, the `--watch` flag is defined but not implemented. Future updates will include automatic rebuilding when content or templates change.
 2. **Directory Structure Consistency:**
-
     - Maintain a consistent directory structure to ensure relative paths are correctly calculated and assets are properly linked.
 3. **Error Handling:**
-
     - Review the logs in the `logs/` directory if you encounter any issues during the build process.
 4. **Extending Features:**
-
     - Consider adding features like search functionality, custom taxonomies, or integration with third-party services as needed.

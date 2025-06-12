@@ -31,6 +31,7 @@ stattic.egg-info/top_level.txt
 stattic_pkg/__init__.py
 stattic_pkg/cli.py
 stattic_pkg/core.py
+stattic_pkg/settings.py
 stattic_pkg/templates/404.html
 stattic_pkg/templates/base.html
 stattic_pkg/templates/category.html
@@ -38,8 +39,3 @@ stattic_pkg/templates/index.html
 stattic_pkg/templates/page.html
 stattic_pkg/templates/post.html
 stattic_pkg/templates/tag.html
-tests/test_build_only.py
-tests/test_comparison.py
-tests/test_method_timing.py
-tests/test_package.py
-tests/test_performance.py

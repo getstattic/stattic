@@ -92,6 +92,60 @@ After installation, you can use the `stattic` command from anywhere in your term
 
 ## Usage
 
+### **Configuration File (Recommended)**
+
+Stattic supports configuration files to avoid typing command-line arguments repeatedly. Create a configuration file in your project directory:
+
+```bash
+stattic --init yml
+```
+
+This creates a `stattic.yml` file with all available settings:
+
+```yaml
+# Stattic Configuration File
+# Configure your static site generator settings here
+
+# Site information
+site_url: https://demo.stattic.site
+site_title: My Static Site
+site_tagline: Built with Stattic
+
+# Build settings
+output: output
+content: content
+templates: templates
+assets: assets
+blog_slug: blog
+
+# Content settings
+posts_per_page: 5
+sort_by: date  # date, title, author, order
+
+# Styling
+fonts:
+  - Quicksand
+
+# SEO settings
+robots: public  # public or private
+
+# Development settings
+minify: true
+watch: false
+```
+
+After creating your configuration file, simply run:
+
+```bash
+stattic
+```
+
+Stattic will automatically load settings from:
+- `stattic.yml` or `stattic.yaml` (YAML format)
+- `stattic.json` (JSON format)
+
+Command-line arguments still work and will override configuration file settings.
+
 ### **Basic Usage**
 
 After installation, you can use the `stattic` command from anywhere in your terminal:
