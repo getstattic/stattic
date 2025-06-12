@@ -1,5 +1,5 @@
 import os
-import subprocess, shutil
+import shutil
 import markdown
 import hashlib
 import yaml
@@ -8,6 +8,7 @@ import logging
 import time
 import tempfile
 import html
+import threading
 from datetime import datetime, date
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, TemplateSyntaxError
 import re
@@ -26,13 +27,25 @@ import pkg_resources
 
 GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap'
 
-# Global variable for FileProcessor instance in each worker process
-file_processor = None
+# Thread-local storage for FileProcessor instances
+thread_local = threading.local()
 
 def initializer(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug):
-    global file_processor
+    """Initialize FileProcessor instance in thread-local storage for each worker process."""
     session = requests.Session()
-    file_processor = FileProcessor(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=session)
+    thread_local.file_processor = FileProcessor(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=session)
+    
+    # Register cleanup to close session when process ends
+    import atexit
+    atexit.register(cleanup_session)
+
+def cleanup_session():
+    """Cleanup function to close session when worker process ends."""
+    if hasattr(thread_local, 'file_processor') and hasattr(thread_local.file_processor, 'session'):
+        try:
+            thread_local.file_processor.session.close()
+        except:
+            pass  # Ignore errors during cleanup
 
 class FileProcessor:
     def __init__(self, templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=None):
@@ -91,8 +104,17 @@ class FileProcessor:
             if url.startswith('http'):
                 response = self.session.get(url)
                 response.raise_for_status()
+                # Security fix: Validate and sanitize filename to prevent path traversal
                 image_name = os.path.basename(url)
+                # Remove directory traversal sequences and invalid characters
+                image_name = os.path.basename(os.path.normpath(image_name))
+                if '..' in image_name or '/' in image_name or '\\' in image_name:
+                    # Generate safe filename from URL hash if suspicious
+                    image_name = hashlib.md5(url.encode()).hexdigest() + os.path.splitext(image_name)[1]
                 image_path = os.path.join(output_dir, image_name)
+                # Verify the final path is within output_dir
+                if not os.path.abspath(image_path).startswith(os.path.abspath(output_dir)):
+                    raise ValueError(f"Path traversal attempt detected: {image_name}")
                 with open(image_path, 'wb') as image_file:
                     image_file.write(response.content)
                 return image_path
@@ -130,8 +152,19 @@ class FileProcessor:
         if not os.path.exists(local_image_path):
             return None
 
+        # Security fix: Validate and sanitize filename to prevent path traversal
         image_name = os.path.basename(local_image_path)
+        # Remove directory traversal sequences and invalid characters
+        image_name = os.path.basename(os.path.normpath(image_name))
+        if '..' in image_name or '/' in image_name or '\\' in image_name:
+            # Generate safe filename from path hash if suspicious
+            image_name = hashlib.md5(local_image_path.encode()).hexdigest() + os.path.splitext(image_name)[1]
+        
         dest_path = os.path.join(self.images_dir, image_name)
+        
+        # Verify the final path is within images_dir
+        if not os.path.abspath(dest_path).startswith(os.path.abspath(self.images_dir)):
+            raise ValueError(f"Path traversal attempt detected: {image_name}")
 
         # Only copy if not already present
         if not os.path.exists(dest_path):
@@ -167,7 +200,18 @@ class FileProcessor:
             if not url.startswith('http') and not url.startswith('//'):
                 if markdown_file_path:
                     markdown_dir = os.path.dirname(markdown_file_path)
+                    # Security fix: Validate relative path to prevent directory traversal
+                    if '..' in url or url.startswith('/'):
+                        self.logger.warning(f"Skipping potentially unsafe image path: {url}")
+                        continue
                     full_local_path = os.path.join(markdown_dir, url)
+                    # Verify the resolved path is within expected directories
+                    abs_local_path = os.path.abspath(full_local_path)
+                    abs_content_dir = os.path.abspath(self.content_dir)
+                    abs_markdown_dir = os.path.abspath(markdown_dir)
+                    if not (abs_local_path.startswith(abs_content_dir) or abs_local_path.startswith(abs_markdown_dir)):
+                        self.logger.warning(f"Skipping image path outside content directory: {url}")
+                        continue
                     image_path = self.copy_local_image(full_local_path)
             else:
                 image_path = self.download_image(url, self.images_dir)
@@ -176,7 +220,12 @@ class FileProcessor:
                 webp_path = self.convert_image_to_webp(image_path)
                 if webp_path:
                     images_converted += 1
+                    # Security fix: Sanitize webp filename to prevent path traversal
                     webp_name = os.path.basename(webp_path)
+                    webp_name = os.path.basename(os.path.normpath(webp_name))
+                    if '..' in webp_name or '/' in webp_name or '\\' in webp_name:
+                        # Generate safe filename if suspicious
+                        webp_name = hashlib.md5(webp_path.encode()).hexdigest() + '.webp'
                     local_image_paths[url] = f"images/{webp_name}"
 
         # Replace src, href, and srcset references in content
@@ -938,30 +987,34 @@ body {{
         """Build posts and pages using single-threaded processing for small workloads."""
         # Create a local FileProcessor instance for single-threaded processing
         session = requests.Session()
-        processor = FileProcessor(
-            self.templates_dir, self.output_dir, self.images_dir,
-            self.categories, self.tags, self.authors, self.pages,
-            self.site_url, self.content_dir, self.blog_slug, 
-            session=session
-        )
-        
-        for file_path, is_page in tasks:
-            try:
-                result = processor.process(file_path, is_page)
-                if result:
-                    # Accumulate the images
-                    self.image_conversion_count += result.get("images_converted", 0)
-                    
-                    if is_page:
-                        self.pages_generated += 1
-                    else:
-                        self.posts_generated += 1
-                        # If there's post_metadata, store it
-                        post_meta = result.get("post_metadata")
-                        if post_meta:
-                            self.posts.append(post_meta)
-            except Exception as e:
-                self.logger.error(f"Error processing {file_path}: {e}")
+        try:
+            processor = FileProcessor(
+                self.templates_dir, self.output_dir, self.images_dir,
+                self.categories, self.tags, self.authors, self.pages,
+                self.site_url, self.content_dir, self.blog_slug, 
+                session=session
+            )
+            
+            for file_path, is_page in tasks:
+                try:
+                    result = processor.process(file_path, is_page)
+                    if result:
+                        # Accumulate the images
+                        self.image_conversion_count += result.get("images_converted", 0)
+                        
+                        if is_page:
+                            self.pages_generated += 1
+                        else:
+                            self.posts_generated += 1
+                            # If there's post_metadata, store it
+                            post_meta = result.get("post_metadata")
+                            if post_meta:
+                                self.posts.append(post_meta)
+                except Exception as e:
+                    self.logger.error(f"Error processing {file_path}: {e}")
+        finally:
+            # Ensure session is properly closed to prevent resource leaks
+            session.close()
 
     def _build_with_multiprocessing(self, tasks):
         """Build posts and pages using multiprocessing for large workloads."""
@@ -1468,6 +1521,5 @@ def resolve_output_path(output_dir):
     return output_dir
 
 def process_file(file_path, is_page):
-    """Process a file using the global FileProcessor."""
-    global file_processor
-    return file_processor.process(file_path, is_page)
+    """Process a file using the thread-local FileProcessor."""
+    return thread_local.file_processor.process(file_path, is_page)

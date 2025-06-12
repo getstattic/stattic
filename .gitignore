@@ -9,6 +9,5 @@ stattic.json
 stattic.yml
 autoStattic.py
 __pycache__
-docOut.py
-dummyContent.py
-content/dummy.py
+build/
+*.egg-info/

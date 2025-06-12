@@ -4,6 +4,19 @@ include CHANGELOG.md
 include requirements.txt
 recursive-include stattic_pkg/templates *.html
 recursive-include stattic_pkg *.py
+
+# Exclude build artifacts and demo content
 global-exclude *.pyc
 global-exclude __pycache__
 global-exclude .DS_Store
+prune content
+prune assets
+prune output
+prune logs
+prune tests
+prune dist
+exclude package.json
+exclude tailwind.config.js
+exclude styles.css
+exclude *.json
+exclude *.yml

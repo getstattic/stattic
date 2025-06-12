@@ -456,23 +456,32 @@ Stattic provides detailed logs of the build process, including performance metri
 We welcome contributions! To contribute:
 
 1. **Fork the Repository:**
+
 ```
 git clone https://github.com/getstattic/stattic.git
 cd stattic
 ```
+
 2. **Create a New Branch:**
+
 ```
 git checkout -b feature-branch
 ```
+
 3. **Make Your Changes**: Implement your features or fixes.
+
 4. **Commit Your Changes:**
+
 ```
 git commit -m "Add feature XYZ"
 ```
+
 5. **Push to Your Fork:**
+
 ```
 git push origin feature-branch
 ```
+
 6. **Submit a Pull Request**: Open a pull request detailing your changes.
 
 * * *
@@ -486,10 +495,14 @@ This project is licensed under the MIT License. See the [LICENSE](/LICENSE) file
 ## Additional Notes (01/06/2025)
 
 1. **Watch Mode Implementation:**
+
     - Currently, the `--watch` flag is defined but not implemented. Future updates will include automatic rebuilding when content or templates change.
 2. **Directory Structure Consistency:**
+
     - Maintain a consistent directory structure to ensure relative paths are correctly calculated and assets are properly linked.
 3. **Error Handling:**
+
     - Review the logs in the `logs/` directory if you encounter any issues during the build process.
 4. **Extending Features:**
+
     - Consider adding features like search functionality, custom taxonomies, or integration with third-party services as needed.
