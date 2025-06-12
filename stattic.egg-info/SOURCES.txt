@@ -16,6 +16,7 @@ stattic_pkg/__init__.py
 stattic_pkg/cli.py
 stattic_pkg/core.py
 stattic_pkg/settings.py
+stattic_pkg/url_validator.py
 stattic_pkg/templates/404.html
 stattic_pkg/templates/base.html
 stattic_pkg/templates/category.html

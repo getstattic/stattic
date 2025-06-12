@@ -24,6 +24,7 @@ from hashlib import md5
 import xml.etree.ElementTree as ET
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import pkg_resources
+from .url_validator import URLValidator, SafeRequestor
 
 GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap'
 
@@ -33,7 +34,10 @@ thread_local = threading.local()
 def initializer(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug):
     """Initialize FileProcessor instance in thread-local storage for each worker process."""
     session = requests.Session()
-    thread_local.file_processor = FileProcessor(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=session)
+    # Initialize URL validator and safe requestor for each worker
+    url_validator = URLValidator()
+    safe_requestor = SafeRequestor(url_validator, session)
+    thread_local.file_processor = FileProcessor(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=session, safe_requestor=safe_requestor)
     
     # Register cleanup to close session when process ends
     import atexit
@@ -48,7 +52,7 @@ def cleanup_session():
             pass  # Ignore errors during cleanup
 
 class FileProcessor:
-    def __init__(self, templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=None):
+    def __init__(self, templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=None, safe_requestor=None):
         self.templates_dir = templates_dir
         self.output_dir = output_dir
         self.images_dir = images_dir
@@ -61,6 +65,10 @@ class FileProcessor:
         self.blog_slug = blog_slug
         self.session = session or requests.Session()
         self.logger = logging.getLogger('FileProcessor')
+
+        # Initialize URL validation and safe requesting
+        self.url_validator = URLValidator()
+        self.safe_requestor = safe_requestor or SafeRequestor(self.url_validator, self.session)
 
         self.env = Environment(loader=FileSystemLoader(templates_dir))
         self.markdown_parser = self.create_markdown_parser()
@@ -97,13 +105,24 @@ class FileProcessor:
         return datetime.min
 
     def download_image(self, url, output_dir):
-        """Download an image and save it locally."""
+        """Download an image and save it locally with SSRF protection."""
         if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
             return None
         try:
             if url.startswith('http'):
-                response = self.session.get(url)
-                response.raise_for_status()
+                # Validate URL for SSRF protection
+                is_valid, error_msg = self.url_validator.validate_url(url)
+                if not is_valid:
+                    self.logger.warning(f"SSRF protection blocked URL {url}: {error_msg}")
+                    return None
+                
+                # Make safe request
+                success, result = self.safe_requestor.safe_get(url, timeout=30, allow_redirects=True)
+                if not success:
+                    self.logger.warning(f"Failed to download image {url}: {result}")
+                    return None
+                
+                response = result
                 # Security fix: Validate and sanitize filename to prevent path traversal
                 image_name = os.path.basename(url)
                 # Remove directory traversal sequences and invalid characters
@@ -123,7 +142,8 @@ class FileProcessor:
                     self.logger.error(f"Failed to write downloaded image {image_path}: {e}")
                     return None
             return None
-        except requests.exceptions.RequestException:
+        except Exception as e:
+            self.logger.error(f"Unexpected error downloading image {url}: {e}")
             return None
 
     def convert_image_to_webp(self, image_path):
@@ -485,6 +505,11 @@ class Stattic:
         self.image_conversion_count = 0
         self.posts = []  # Collect post metadata during processing
 
+        # Initialize URL validation and safe requesting
+        self.url_validator = URLValidator()
+        self.session = requests.Session()
+        self.safe_requestor = SafeRequestor(self.url_validator, self.session)
+
         # If templates_dir is relative and doesn't exist, try to use package templates
         if not os.path.isabs(self.templates_dir) and not os.path.exists(self.templates_dir):
             try:
@@ -656,7 +681,7 @@ class Stattic:
                         self.pages.append(metadata)
 
     def download_fonts(self):
-        """Download Google Fonts if specified."""
+        """Download Google Fonts if specified with SSRF protection."""
         if not self.fonts:
             return
 
@@ -668,9 +693,13 @@ class Stattic:
             font_url = GOOGLE_FONTS_API.format(font_name=font_name, weights='400;700')
             
             try:
-                response = requests.get(font_url)
-                response.raise_for_status()
+                # Validate Google Fonts URL with SSRF protection
+                success, result = self.safe_requestor.safe_google_fonts_get(font_url, timeout=30, allow_redirects=True)
+                if not success:
+                    self.logger.error(f"Failed to download font {font}: {result}")
+                    continue
                 
+                response = result
                 font_css_path = os.path.join(fonts_dir, f'{font.replace(" ", "_").lower()}.css')
                 try:
                     with open(font_css_path, 'w', encoding='utf-8') as f:
@@ -679,8 +708,9 @@ class Stattic:
                 except (IOError, OSError, PermissionError) as e:
                     self.logger.error(f"Failed to write font CSS file {font_css_path}: {e}")
                     continue
-            except requests.exceptions.RequestException as e:
-                self.logger.error(f"Failed to download font {font}: {e}")
+            except Exception as e:
+                self.logger.error(f"Unexpected error downloading font {font}: {e}")
+                continue
 
     def download_google_fonts(self):
         """Download Google Fonts and generate fonts.css file."""
@@ -730,15 +760,13 @@ class Stattic:
                         # Build the Google Fonts CSS2 API URL
                         google_font_url = f'https://fonts.googleapis.com/css2?family={font_cleaned}:wght@{weight}&display=swap'
                         
-                        headers = {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                        }
+                        # Fetch the CSS with SSRF protection
+                        success, result = self.safe_requestor.safe_google_fonts_get(google_font_url, timeout=10, allow_redirects=True)
+                        if not success:
+                            self.logger.warning(f"Failed to fetch Google Fonts CSS {google_font_url}: {result}")
+                            continue
                         
-                        # Fetch the CSS
-                        response = requests.get(google_font_url, headers=headers, timeout=10)
-                        if response.status_code != 200:
-                            continue  # Skip if weight not supported
-                        
+                        response = result
                         css_data = response.text
                         
                         # Extract font file URLs
@@ -748,8 +776,10 @@ class Stattic:
                         
                         # Download the first available URL (typically woff2)
                         for font_url in font_urls:
-                            font_response = requests.get(font_url, headers=headers, timeout=10)
-                            if font_response.status_code == 200:
+                            # Validate and download font file with SSRF protection
+                            success, result = self.safe_requestor.safe_google_fonts_get(font_url, timeout=10, allow_redirects=True)
+                            if success:
+                                font_response = result
                                 try:
                                     with open(woff2_path, 'wb') as f:
                                         f.write(font_response.content)
@@ -758,6 +788,9 @@ class Stattic:
                                 except (IOError, OSError, PermissionError) as e:
                                     self.logger.error(f"Failed to write font file {woff2_path}: {e}")
                                     continue
+                            else:
+                                self.logger.warning(f"Failed to download font file {font_url}: {result}")
+                                continue
                     
                     # Generate @font-face CSS rule (only if the font file exists)
                     if os.path.exists(woff2_path) and os.path.getsize(woff2_path) > 0:
@@ -1075,11 +1108,15 @@ body {{
         # Create a local FileProcessor instance for single-threaded processing
         session = requests.Session()
         try:
+            # Initialize URL validator and safe requestor for single-threaded processing
+            url_validator = URLValidator()
+            safe_requestor = SafeRequestor(url_validator, session)
+            
             processor = FileProcessor(
                 self.templates_dir, self.output_dir, self.images_dir,
                 self.categories, self.tags, self.authors, self.pages,
                 self.site_url, self.content_dir, self.blog_slug, 
-                session=session
+                session=session, safe_requestor=safe_requestor
             )
             
             for file_path, is_page in tasks:
@@ -1631,12 +1668,14 @@ This site contains structured content formatted for LLM-friendly consumption.
         # Build 404 page
         self.build_404_page()
 
-def resolve_output_path(output_dir):
-    """If the output path starts with "~/", expand it to the user's home directory"""
-    if output_dir.startswith("~/"):
-        return os.path.expanduser(output_dir)
-    return output_dir
+    def __del__(self):
+        """Cleanup method to close session when Stattic instance is destroyed."""
+        self.cleanup()
 
-def process_file(file_path, is_page):
-    """Process a file using the thread-local FileProcessor."""
-    return thread_local.file_processor.process(file_path, is_page)
+    def cleanup(self):
+        """Cleanup resources (close session, etc.)."""
+        try:
+            if hasattr(self, 'session') and self.session:
+                self.session.close()
+        except:
+            pass  # Ignore errors during cleanup
