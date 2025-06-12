@@ -7,7 +7,6 @@ package.json
 pyproject.toml
 requirements.txt
 setup.py
-stattic.py
 styles.css
 tailwind.config.js
 assets/css/stattic.css
@@ -18,6 +17,11 @@ content/categories.yml
 content/tags.yml
 content/pages/about.md
 content/pages/contact.md
+content/posts/build-with-stattic-and-deploy-on-github-pages.md
+content/posts/command-line-arguments-for-stattic.md
+content/posts/decentralizing-publishing-with-stattic.md
+content/posts/front-matter-fields-for-stattic.md
+content/posts/say-hello-to-stattic.md
 stattic.egg-info/PKG-INFO
 stattic.egg-info/SOURCES.txt
 stattic.egg-info/dependency_links.txt
@@ -34,4 +38,8 @@ stattic_pkg/templates/index.html
 stattic_pkg/templates/page.html
 stattic_pkg/templates/post.html
 stattic_pkg/templates/tag.html
+tests/test_build_only.py
+tests/test_comparison.py
+tests/test_method_timing.py
 tests/test_package.py
+tests/test_performance.py
