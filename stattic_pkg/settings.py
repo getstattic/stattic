@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Settings loader for Stattic static site generator.
-Supports loading configuration from stattic.yml, stattic.yaml, or stattic.json files.
+Supports configuration from stattic.yml, stattic.yaml, or stattic.json files.
 """
 
 import os
@@ -85,20 +85,33 @@ class StatticSettings:
         Load configuration from a file.
         
         Args:
-            config_path: Path to configuration file
+            config_path: Path to the configuration file
             
         Returns:
             Dictionary of configuration settings
         """
-        file_ext = os.path.splitext(config_path)[1].lower()
-        
-        with open(config_path, 'r', encoding='utf-8') as f:
-            if file_ext in ['.yml', '.yaml']:
-                return yaml.safe_load(f) or {}
-            elif file_ext == '.json':
-                return json.load(f) or {}
-            else:
-                raise ValueError(f"Unsupported config file format: {file_ext}")
+        try:
+            file_ext = os.path.splitext(config_path)[1].lower()
+            
+            with open(config_path, 'r', encoding='utf-8') as f:
+                if file_ext in ['.yml', '.yaml']:
+                    return yaml.safe_load(f) or {}
+                elif file_ext == '.json':
+                    return json.load(f) or {}
+                else:
+                    raise ValueError(f"Unsupported config file format: {file_ext}")
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file not found: {config_path}")
+        except PermissionError:
+            raise PermissionError(f"Permission denied reading configuration file: {config_path}")
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML in configuration file {config_path}: {e}")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in configuration file {config_path}: {e}")
+        except (IOError, OSError) as e:
+            raise IOError(f"Error reading configuration file {config_path}: {e}")
+        except Exception as e:
+            raise Exception(f"Unexpected error loading configuration file {config_path}: {e}")
     
     def create_sample_config(self, file_format: str = 'yml') -> str:
         """
@@ -148,35 +161,42 @@ class StatticSettings:
         filename = f'stattic.{file_format}'
         config_path = os.path.join(self.config_dir, filename)
         
-        with open(config_path, 'w', encoding='utf-8') as f:
-            if file_format in ['yml', 'yaml']:
-                # Custom YAML output with comments
-                f.write("# Stattic Configuration File\n")
-                f.write("# Configure your static site generator settings here\n\n")
-                f.write("# Site information\n")
-                f.write("site_url: https://example.com\n")
-                f.write("site_title: My Static Site\n")
-                f.write("site_tagline: Built with Stattic\n\n")
-                f.write("# Build settings\n")
-                f.write("output: output\n")
-                f.write("content: content\n")
-                f.write("templates: templates\n")
-                f.write("assets: assets\n")
-                f.write("blog_slug: blog\n\n")
-                f.write("# Content settings\n")
-                f.write("posts_per_page: 5\n")
-                f.write("sort_by: date  # date, title, author, order\n\n")
-                f.write("# Styling\n")
-                f.write("fonts:\n")
-                f.write("  - Quicksand\n")
-                f.write("  - Open Sans\n\n")
-                f.write("# SEO settings\n")
-                f.write("robots: public  # public or private\n\n")
-                f.write("# Development settings\n")
-                f.write("minify: false\n")
-                f.write("watch: false\n")
-            elif file_format == 'json':
-                json.dump(sample_config, f, indent=2)
+        try:
+            with open(config_path, 'w', encoding='utf-8') as f:
+                if file_format in ['yml', 'yaml']:
+                    # Custom YAML output with comments
+                    f.write("# Stattic Configuration File\n")
+                    f.write("# Configure your static site generator settings here\n\n")
+                    f.write("# Site information\n")
+                    f.write("site_url: https://example.com\n")
+                    f.write("site_title: My Static Site\n")
+                    f.write("site_tagline: Built with Stattic\n\n")
+                    f.write("# Build settings\n")
+                    f.write("output: output\n")
+                    f.write("content: content\n")
+                    f.write("templates: templates\n")
+                    f.write("assets: assets\n")
+                    f.write("blog_slug: blog\n\n")
+                    f.write("# Content settings\n")
+                    f.write("posts_per_page: 5\n")
+                    f.write("sort_by: date  # date, title, author, order\n\n")
+                    f.write("# Styling\n")
+                    f.write("fonts:\n")
+                    f.write("  - Quicksand\n")
+                    f.write("  - Open Sans\n\n")
+                    f.write("# SEO settings\n")
+                    f.write("robots: public  # public or private\n\n")
+                    f.write("# Development settings\n")
+                    f.write("minify: false\n")
+                    f.write("watch: false\n")
+                elif file_format == 'json':
+                    json.dump(sample_config, f, indent=2)
+        except PermissionError:
+            raise PermissionError(f"Permission denied creating configuration file: {config_path}")
+        except (IOError, OSError) as e:
+            raise IOError(f"Error writing configuration file {config_path}: {e}")
+        except Exception as e:
+            raise Exception(f"Unexpected error creating configuration file {config_path}: {e}")
         
         return config_path
     

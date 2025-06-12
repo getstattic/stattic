@@ -115,9 +115,13 @@ class FileProcessor:
                 # Verify the final path is within output_dir
                 if not os.path.abspath(image_path).startswith(os.path.abspath(output_dir)):
                     raise ValueError(f"Path traversal attempt detected: {image_name}")
-                with open(image_path, 'wb') as image_file:
-                    image_file.write(response.content)
-                return image_path
+                try:
+                    with open(image_path, 'wb') as image_file:
+                        image_file.write(response.content)
+                    return image_path
+                except (IOError, OSError, PermissionError) as e:
+                    self.logger.error(f"Failed to write downloaded image {image_path}: {e}")
+                    return None
             return None
         except requests.exceptions.RequestException:
             return None
@@ -168,7 +172,15 @@ class FileProcessor:
 
         # Only copy if not already present
         if not os.path.exists(dest_path):
-            shutil.copy2(local_image_path, dest_path)
+            try:
+                shutil.copy2(local_image_path, dest_path)
+                self.logger.debug(f"Copied local image: {local_image_path} -> {dest_path}")
+            except (IOError, OSError, PermissionError) as e:
+                self.logger.error(f"Failed to copy image {local_image_path}: {e}")
+                return None
+            except Exception as e:
+                self.logger.error(f"Unexpected error copying image {local_image_path}: {e}")
+                return None
 
         return dest_path
 
@@ -239,12 +251,20 @@ class FileProcessor:
 
     def parse_markdown_with_metadata(self, filepath):
         """Parse a markdown file with YAML front matter."""
-        with open(filepath, 'r', encoding='utf-8') as f:
-            content = f.read()
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except (IOError, OSError, PermissionError) as e:
+            self.logger.error(f"Failed to read markdown file {filepath}: {e}")
+            return {}, ""
 
         parts = content.split('---', 2)
         if len(parts) >= 3:
-            metadata = yaml.safe_load(parts[1])
+            try:
+                metadata = yaml.safe_load(parts[1])
+            except yaml.YAMLError as e:
+                self.logger.error(f"Invalid YAML front matter in {filepath}: {e}")
+                metadata = {}
             markdown_content = parts[2].strip()
         else:
             metadata = {}
@@ -334,8 +354,16 @@ class FileProcessor:
                 site_url=self.site_url,
                 get_author_name=self.get_author_name
             )
-            with open(output_file_path, 'w') as output_file:
-                output_file.write(rendered_html)
+            try:
+                with open(output_file_path, 'w', encoding='utf-8') as output_file:
+                    output_file.write(rendered_html)
+                self.logger.debug(f"Generated HTML: {output_file_path}")
+            except (IOError, OSError, PermissionError) as e:
+                self.logger.error(f"Failed to write HTML file {output_file_path}: {e}")
+                return False
+            except Exception as e:
+                self.logger.error(f"Unexpected error writing HTML file {output_file_path}: {e}")
+                return False
                 
             return True
         except (TemplateNotFound, TemplateSyntaxError) as e:
@@ -522,12 +550,18 @@ class Stattic:
             for file in os.listdir(css_dir):
                 if file.endswith('.css') and not file.endswith('.min.css'):
                     css_path = os.path.join(css_dir, file)
-                    with open(css_path, 'r', encoding='utf-8') as f:
-                        css_content = f.read()
-                    minified_css = csscompressor.compress(css_content)
-                    minified_path = os.path.join(css_dir, file.replace('.css', '.min.css'))
-                    with open(minified_path, 'w', encoding='utf-8') as f:
-                        f.write(minified_css)
+                    try:
+                        with open(css_path, 'r', encoding='utf-8') as f:
+                            css_content = f.read()
+                        minified_css = csscompressor.compress(css_content)
+                        minified_path = os.path.join(css_dir, file.replace('.css', '.min.css'))
+                        with open(minified_path, 'w', encoding='utf-8') as f:
+                            f.write(minified_css)
+                        self.logger.debug(f"Minified CSS: {file}")
+                    except (IOError, OSError, PermissionError) as e:
+                        self.logger.error(f"Failed to minify CSS file {file}: {e}")
+                    except Exception as e:
+                        self.logger.error(f"Unexpected error minifying CSS file {file}: {e}")
 
         # Minify JS files
         js_dir = os.path.join(assets_output_dir, 'js')
@@ -535,27 +569,47 @@ class Stattic:
             for file in os.listdir(js_dir):
                 if file.endswith('.js') and not file.endswith('.min.js'):
                     js_path = os.path.join(js_dir, file)
-                    with open(js_path, 'r', encoding='utf-8') as f:
-                        js_content = f.read()
-                    minified_js = rjsmin.jsmin(js_content)
-                    minified_path = os.path.join(js_dir, file.replace('.js', '.min.js'))
-                    with open(minified_path, 'w', encoding='utf-8') as f:
-                        f.write(minified_js)
+                    try:
+                        with open(js_path, 'r', encoding='utf-8') as f:
+                            js_content = f.read()
+                        minified_js = rjsmin.jsmin(js_content)
+                        minified_path = os.path.join(js_dir, file.replace('.js', '.min.js'))
+                        with open(minified_path, 'w', encoding='utf-8') as f:
+                            f.write(minified_js)
+                        self.logger.debug(f"Minified JS: {file}")
+                    except (IOError, OSError, PermissionError) as e:
+                        self.logger.error(f"Failed to minify JS file {file}: {e}")
+                    except Exception as e:
+                        self.logger.error(f"Unexpected error minifying JS file {file}: {e}")
 
     def load_categories_and_tags(self, type_name):
         """Load categories or tags from YAML file."""
         file_path = os.path.join(self.content_dir, f'{type_name}.yml')
         if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f) or {}
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return yaml.safe_load(f) or {}
+            except (IOError, OSError, PermissionError) as e:
+                self.logger.error(f"Failed to read {type_name} file {file_path}: {e}")
+                return {}
+            except yaml.YAMLError as e:
+                self.logger.error(f"Invalid YAML in {type_name} file {file_path}: {e}")
+                return {}
         return {}
 
     def load_authors(self):
         """Load authors from YAML file."""
         file_path = os.path.join(self.content_dir, 'authors.yml')
         if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f) or {}
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return yaml.safe_load(f) or {}
+            except (IOError, OSError, PermissionError) as e:
+                self.logger.error(f"Failed to read authors file {file_path}: {e}")
+                return {}
+            except yaml.YAMLError as e:
+                self.logger.error(f"Invalid YAML in authors file {file_path}: {e}")
+                return {}
         return {}
 
     def get_author_name(self, author_id):
@@ -618,10 +672,13 @@ class Stattic:
                 response.raise_for_status()
                 
                 font_css_path = os.path.join(fonts_dir, f'{font.replace(" ", "_").lower()}.css')
-                with open(font_css_path, 'w', encoding='utf-8') as f:
-                    f.write(response.text)
-                    
-                self.logger.debug(f"Downloaded font: {font}")
+                try:
+                    with open(font_css_path, 'w', encoding='utf-8') as f:
+                        f.write(response.text)
+                    self.logger.debug(f"Downloaded font: {font}")
+                except (IOError, OSError, PermissionError) as e:
+                    self.logger.error(f"Failed to write font CSS file {font_css_path}: {e}")
+                    continue
             except requests.exceptions.RequestException as e:
                 self.logger.error(f"Failed to download font {font}: {e}")
 
@@ -693,10 +750,14 @@ class Stattic:
                         for font_url in font_urls:
                             font_response = requests.get(font_url, headers=headers, timeout=10)
                             if font_response.status_code == 200:
-                                with open(woff2_path, 'wb') as f:
-                                    f.write(font_response.content)
-                                self.logger.debug(f"Downloaded {font} weight {weight} → {woff2_name}")
-                                break
+                                try:
+                                    with open(woff2_path, 'wb') as f:
+                                        f.write(font_response.content)
+                                    self.logger.debug(f"Downloaded {font} weight {weight} → {woff2_name}")
+                                    break
+                                except (IOError, OSError, PermissionError) as e:
+                                    self.logger.error(f"Failed to write font file {woff2_path}: {e}")
+                                    continue
                     
                     # Generate @font-face CSS rule (only if the font file exists)
                     if os.path.exists(woff2_path) and os.path.getsize(woff2_path) > 0:
@@ -724,8 +785,12 @@ body {{
 """
         
         # Write fonts.css file
-        with open(fonts_css_path, 'w', encoding='utf-8') as f:
-            f.write(css_content)
+        try:
+            with open(fonts_css_path, 'w', encoding='utf-8') as f:
+                f.write(css_content)
+        except (IOError, OSError, PermissionError) as e:
+            self.logger.error(f"Failed to write fonts CSS file {fonts_css_path}: {e}")
+            return False
         
         self.logger.info(f"Generated fonts.css with {len(self.fonts)} font families")
 
@@ -768,25 +833,33 @@ body {{
         
         # Copy assets as normal
         if self.assets_dir and os.path.exists(self.assets_dir):
-            if os.path.exists(output_assets_dir):
-                # If fonts are cached, preserve them during asset copy
-                if fonts_cached:
-                    self._copy_assets_preserving_fonts(self.assets_dir, output_assets_dir, fonts_dir, fonts_css_path)
+            try:
+                if os.path.exists(output_assets_dir):
+                    # If fonts are cached, preserve them during asset copy
+                    if fonts_cached:
+                        self._copy_assets_preserving_fonts(self.assets_dir, output_assets_dir, fonts_dir, fonts_css_path)
+                    else:
+                        shutil.rmtree(output_assets_dir)
+                        shutil.copytree(self.assets_dir, output_assets_dir)
                 else:
-                    shutil.rmtree(output_assets_dir)
                     shutil.copytree(self.assets_dir, output_assets_dir)
-            else:
-                shutil.copytree(self.assets_dir, output_assets_dir)
+                self.logger.info(f"Copied assets from {self.assets_dir}")
+            except (IOError, OSError, PermissionError) as e:
+                self.logger.error(f"Failed to copy assets from {self.assets_dir}: {e}")
         elif os.path.exists('assets'):
-            if os.path.exists(output_assets_dir):
-                # If fonts are cached, preserve them during asset copy
-                if fonts_cached:
-                    self._copy_assets_preserving_fonts('assets', output_assets_dir, fonts_dir, fonts_css_path)
+            try:
+                if os.path.exists(output_assets_dir):
+                    # If fonts are cached, preserve them during asset copy
+                    if fonts_cached:
+                        self._copy_assets_preserving_fonts('assets', output_assets_dir, fonts_dir, fonts_css_path)
+                    else:
+                        shutil.rmtree(output_assets_dir)
+                        shutil.copytree('assets', output_assets_dir)
                 else:
-                    shutil.rmtree(output_assets_dir)
                     shutil.copytree('assets', output_assets_dir)
-            else:
-                shutil.copytree('assets', output_assets_dir)
+                self.logger.info("Copied assets from local assets directory")
+            except (IOError, OSError, PermissionError) as e:
+                self.logger.error(f"Failed to copy assets from local assets directory: {e}")
         
         # Set flag to indicate if fonts were preserved
         self._fonts_cached = fonts_cached
@@ -795,34 +868,43 @@ body {{
         """Copy assets while preserving cached fonts."""
         import tempfile
         
-        # Backup cached fonts
-        temp_dir = tempfile.mkdtemp()
-        fonts_backup = os.path.join(temp_dir, 'fonts')
-        fonts_css_backup = os.path.join(temp_dir, 'fonts.css')
-        
-        shutil.copytree(fonts_dir, fonts_backup)
-        shutil.copy2(fonts_css_path, fonts_css_backup)
-        
-        # Clear and copy assets
-        shutil.rmtree(output_assets_dir)
-        shutil.copytree(source_assets, output_assets_dir)
-        
-        # Restore cached fonts
-        fonts_dir_new = os.path.join(output_assets_dir, 'fonts')
-        fonts_css_path_new = os.path.join(output_assets_dir, 'css', 'fonts.css')
-        
-        # Ensure directories exist
-        os.makedirs(fonts_dir_new, exist_ok=True)
-        os.makedirs(os.path.dirname(fonts_css_path_new), exist_ok=True)
-        
-        # Restore fonts
-        if os.path.exists(fonts_dir_new):
-            shutil.rmtree(fonts_dir_new)
-        shutil.copytree(fonts_backup, fonts_dir_new)
-        shutil.copy2(fonts_css_backup, fonts_css_path_new)
-        
-        # Cleanup temp directory
-        shutil.rmtree(temp_dir)
+        try:
+            # Backup cached fonts
+            temp_dir = tempfile.mkdtemp()
+            fonts_backup = os.path.join(temp_dir, 'fonts')
+            fonts_css_backup = os.path.join(temp_dir, 'fonts.css')
+            
+            shutil.copytree(fonts_dir, fonts_backup)
+            shutil.copy2(fonts_css_path, fonts_css_backup)
+            
+            # Clear and copy assets
+            shutil.rmtree(output_assets_dir)
+            shutil.copytree(source_assets, output_assets_dir)
+            
+            # Restore cached fonts
+            fonts_dir_new = os.path.join(output_assets_dir, 'fonts')
+            fonts_css_path_new = os.path.join(output_assets_dir, 'css', 'fonts.css')
+            
+            # Ensure directories exist
+            os.makedirs(fonts_dir_new, exist_ok=True)
+            os.makedirs(os.path.dirname(fonts_css_path_new), exist_ok=True)
+            
+            # Restore fonts
+            if os.path.exists(fonts_dir_new):
+                shutil.rmtree(fonts_dir_new)
+            shutil.copytree(fonts_backup, fonts_dir_new)
+            shutil.copy2(fonts_css_backup, fonts_css_path_new)
+            
+            # Cleanup temp directory
+            shutil.rmtree(temp_dir)
+        except (IOError, OSError, PermissionError) as e:
+            self.logger.error(f"Failed to copy assets while preserving fonts: {e}")
+            # Cleanup temp directory if it exists
+            if 'temp_dir' in locals() and os.path.exists(temp_dir):
+                try:
+                    shutil.rmtree(temp_dir)
+                except:
+                    pass
 
     def _clean_assets_preserving_fonts(self, assets_path, fonts_dir, fonts_css_path):
         """Clean assets directory while preserving cached fonts."""
@@ -848,9 +930,14 @@ body {{
             shutil.copytree(fonts_backup, os.path.join(assets_path, 'fonts'), dirs_exist_ok=True)
             shutil.copy2(fonts_css_backup, os.path.join(assets_path, 'css', 'fonts.css'))
             
+        except (IOError, OSError, PermissionError) as e:
+            self.logger.error(f"Failed to clean assets while preserving fonts: {e}")
         finally:
             # Cleanup temp directory
-            shutil.rmtree(temp_dir)
+            try:
+                shutil.rmtree(temp_dir)
+            except:
+                pass  # Ignore cleanup errors
 
     def create_output_dir(self):
         """Create output directory, preserving non-Stattic files and cached fonts."""
@@ -1107,9 +1194,12 @@ body {{
     <p>If you are not redirected automatically, <a href="/">click here</a>.</p>
 </body>
 </html>"""
-            with open(os.path.join(blog_page_output, 'index.html'), 'w') as f:
-                f.write(redirect_html)
-            self.logger.info("No blog/homepage template found. Redirected /blog/ to /.")
+            try:
+                with open(os.path.join(blog_page_output, 'index.html'), 'w') as f:
+                    f.write(redirect_html)
+                self.logger.info("No blog/homepage template found. Redirected /blog/ to /.")
+            except (IOError, OSError, PermissionError) as e:
+                self.logger.error(f"Failed to write blog redirect page: {e}")
             return
         else:
             self.logger.warning("Template 'page-blog.html' not found. Falling back to 'page.html'.")
@@ -1127,10 +1217,15 @@ body {{
             site_url=self.site_url
         )
 
-        with open(os.path.join(blog_page_output, 'index.html'), 'w') as f:
-            f.write(rendered_html)
+        try:
+            with open(os.path.join(blog_page_output, 'index.html'), 'w') as f:
+                f.write(rendered_html)
+            self.logger.info(f"Generated blog archive page at /{self.blog_slug}/index.html")
+        except (IOError, OSError, PermissionError) as e:
+            self.logger.error(f"Failed to write blog page: {e}")
+            return False
 
-        self.logger.info(f"Generated blog archive page at /{self.blog_slug}/index.html")
+        return True
 
     def calculate_relative_path(self, current_output_dir):
         """Calculate relative path from current directory to root."""
@@ -1275,10 +1370,12 @@ body {{
             )
 
             output_path = os.path.join(page_output_dir, 'index.html')
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(html)
-
-            self.logger.info(f"Generated paginated index page at {output_path}")
+            try:
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(html)
+                self.logger.info(f"Generated paginated index page at {output_path}")
+            except (IOError, OSError, PermissionError) as e:
+                self.logger.error(f"Failed to write paginated index page {output_path}: {e}")
 
         self.logger.info("Building index page")
 
@@ -1342,10 +1439,15 @@ body {{
         rss_output_dir = os.path.join(self.output_dir, 'feed')
         os.makedirs(rss_output_dir, exist_ok=True)
         rss_file = os.path.join(rss_output_dir, 'index.xml')
-        with open(rss_file, 'w', encoding='utf-8') as f:
-            f.write(rss_content)
+        try:
+            with open(rss_file, 'w', encoding='utf-8') as f:
+                f.write(rss_content)
+            self.logger.info("Generating RSS feed")
+        except (IOError, OSError, PermissionError) as e:
+            self.logger.error(f"Failed to write RSS feed file {rss_file}: {e}")
+            return False
 
-        self.logger.info("Generating RSS feed")
+        return True
 
     def generate_xml_sitemap(self, site_url):
         """Generate XML sitemap."""
@@ -1377,10 +1479,15 @@ body {{
 
         # Write sitemap file
         sitemap_file = os.path.join(self.output_dir, 'sitemap.xml')
-        with open(sitemap_file, 'w', encoding='utf-8') as f:
-            f.write(sitemap_content)
+        try:
+            with open(sitemap_file, 'w', encoding='utf-8') as f:
+                f.write(sitemap_content)
+            self.logger.info("Generating XML sitemap")
+        except (IOError, OSError, PermissionError) as e:
+            self.logger.error(f"Failed to write sitemap file {sitemap_file}: {e}")
+            return False
 
-        self.logger.info("Generating XML sitemap")
+        return True
 
     def format_xml_sitemap_entry(self, url, lastmod):
         """Format a single sitemap entry."""
@@ -1402,10 +1509,15 @@ Sitemap: {}/sitemap.xml""".format(self.site_url.rstrip('/') if self.site_url els
 Disallow: /"""
 
         robots_file = os.path.join(self.output_dir, 'robots.txt')
-        with open(robots_file, 'w', encoding='utf-8') as f:
-            f.write(robots_content)
+        try:
+            with open(robots_file, 'w', encoding='utf-8') as f:
+                f.write(robots_content)
+            self.logger.info("Generating robots.txt")
+        except (IOError, OSError, PermissionError) as e:
+            self.logger.error(f"Failed to write robots.txt file {robots_file}: {e}")
+            return False
 
-        self.logger.info("Generating robots.txt")
+        return True
 
     def generate_llms_txt(self, site_title=None, site_tagline=None):
         """Generate llms.txt file for LLM crawlers."""
@@ -1467,10 +1579,15 @@ This site contains structured content formatted for LLM-friendly consumption.
 """
 
         llms_file = os.path.join(self.output_dir, 'llms.txt')
-        with open(llms_file, 'w', encoding='utf-8') as f:
-            f.write(llms_content)
+        try:
+            with open(llms_file, 'w', encoding='utf-8') as f:
+                f.write(llms_content)
+            self.logger.info("Generating llms.txt")
+        except (IOError, OSError, PermissionError) as e:
+            self.logger.error(f"Failed to write llms.txt file {llms_file}: {e}")
+            return False
 
-        self.logger.info("Generating llms.txt")
+        return True
 
     def build_404_page(self):
         """Build 404 error page."""
