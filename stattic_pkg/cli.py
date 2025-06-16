@@ -7,11 +7,11 @@ import os
 import sys
 import argparse
 import time
+from typing import List, Optional
 from .core import Stattic
 from .settings import StatticSettings
 
-
-def main():
+def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(description='Stattic - Static Site Generator')
     parser.add_argument('--output', type=str,
@@ -45,7 +45,7 @@ def main():
     parser.add_argument('--version', action='version', version='%(prog)s 1.0.0')
 
     args = parser.parse_args()
-    
+
     # Handle init command
     if args.init:
         settings_loader = StatticSettings()
@@ -53,26 +53,25 @@ def main():
         print(f"Created sample configuration file: {config_path}")
         print("Edit this file with your settings, then run 'stattic' to build your site.")
         return
-    
+
     # Load settings from configuration file
     settings_loader = StatticSettings()
     config_settings = settings_loader.load_settings()
-    
+
     # Convert argparse Namespace to dict, excluding None values for proper merging
     args_dict = {k: v for k, v in vars(args).items() if v is not None}
-    
+
     # Merge config file settings with command line arguments
     # Command line arguments take precedence
     final_settings = settings_loader.merge_with_args(args_dict)
-    
+
     # Expand home directory if needed
     output_dir = os.path.expanduser(final_settings['output']) if final_settings['output'].startswith("~/") else final_settings['output']
-    
+
     # Parse fonts
     fonts = final_settings['fonts']
     if isinstance(fonts, str):
         fonts = [font.strip() for font in fonts.split(',')]
-
     # Record start time
     overall_start_time = time.time()
 
@@ -117,7 +116,6 @@ def main():
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-
 
 if __name__ == '__main__':
     main()

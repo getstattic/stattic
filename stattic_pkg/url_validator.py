@@ -241,12 +241,11 @@ class URLValidator:
         
         return True
 
-
 class SafeRequestor:
     """
     Safe HTTP requestor that validates URLs before making requests.
     """
-    
+
     def __init__(self, validator: URLValidator = None, session=None):
         """
         Initialize safe requestor.
@@ -257,58 +256,65 @@ class SafeRequestor:
         """
         self.validator = validator or URLValidator()
         self.session = session
-        
+
     def safe_get(self, url: str, allowed_domains: Set[str] = None, **kwargs) -> Tuple[bool, Union[object, str]]:
         """
         Make a safe GET request after URL validation.
-        
+
         Args:
             url: URL to request
             allowed_domains: Optional set of allowed domains
             **kwargs: Additional arguments for requests.get()
-            
+
         Returns:
             Tuple of (success, response_or_error_message)
         """
         import requests
-        
+
         # Validate URL
         is_valid, error_msg = self.validator.validate_url(url, allowed_domains)
         if not is_valid:
             return False, f"URL validation failed: {error_msg}"
-        
+
         try:
             # Set safe defaults
             kwargs.setdefault('timeout', 10)
             kwargs.setdefault('allow_redirects', False)  # Disable redirects for security
             kwargs.setdefault('headers', {})
-            
+
             # Add User-Agent if not present
             if 'User-Agent' not in kwargs['headers']:
                 kwargs['headers']['User-Agent'] = 'Stattic/1.0.0 (Static Site Generator)'
-            
+
+            # For streaming requests, don't automatically raise for status
+            # Let the caller handle the response checking
+            stream_mode = kwargs.get('stream', False)
+
             # Make request
             if self.session:
                 response = self.session.get(url, **kwargs)
             else:
                 response = requests.get(url, **kwargs)
-            
-            response.raise_for_status()
+
+            # Only raise for status if not streaming (streaming needs custom handling)
+            if not stream_mode:
+                response.raise_for_status()
+
             return True, response
-            
+
         except requests.exceptions.RequestException as e:
             return False, f"HTTP request failed: {str(e)}"
         except Exception as e:
             return False, f"Request error: {str(e)}"
-    
+
     def safe_google_fonts_get(self, url: str, **kwargs) -> Tuple[bool, Union[object, str]]:
         """
         Make a safe GET request specifically for Google Fonts.
-        
+
         Args:
             url: Google Fonts URL to request
             **kwargs: Additional arguments for requests.get()
-            
+
         Returns:
             Tuple of (success, response_or_error_message)
         """
@@ -316,11 +322,11 @@ class SafeRequestor:
         is_valid, error_msg = self.validator.validate_google_fonts_url(url)
         if not is_valid:
             return False, f"Google Fonts URL validation failed: {error_msg}"
-        
+
         # Set Google Fonts specific headers
         kwargs.setdefault('headers', {})
         kwargs['headers'].update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
-        
+
         return self.safe_get(url, self.validator.ALLOWED_DOMAINS, **kwargs)

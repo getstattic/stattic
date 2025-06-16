@@ -84,10 +84,6 @@ After installation, you can use the `stattic` command from anywhere in your term
 - `mistune`: Markdown parser with custom rendering.
 - `watchdog`: (Optional) Monitors file changes in watch mode.
 
-**System binaries**
-
-- `gif2webp`: Part of the **libwebp** tools (`brew install webp` or `apt-get install webp`);
-              used to convert animated GIFs to animated WebP quickly.
 ---
 
 ## Usage

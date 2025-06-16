@@ -1,5 +1,5 @@
 """
-Stattic - A simple yet powerful static site generator.
+Stattic - A powerful static site generator.
 
 Stattic takes content written in Markdown and uses Jinja2 templates to generate 
 static HTML pages. It supports blog posts, tag and category pages, static pages,

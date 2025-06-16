@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup script for Stattic static site generator.
+Setup script for Stattic - static site generator.
 """
 
 from setuptools import setup, find_packages

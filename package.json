@@ -1,7 +1,7 @@
 {
     "name": "stattic",
     "version": "1.0.0",
-    "description": "Stattic is a simple yet powerful static site generator written in Python. It takes content written in Markdown and uses Jinja2 templates to generate static HTML pages. The generator supports blog posts, tag and category pages, static pages (like About or Contact), custom URLs, SEO metadata, and more.",
+    "description": "Stattic is a powerful static site generator written in Python. It takes content written in Markdown and uses Jinja2 templates to generate static HTML pages. The generator supports blog posts, tag and category pages, static pages (like About or Contact), custom URLs, SEO metadata, and more.",
     "scripts": {
         "build:css": "npx tailwindcss -i ./styles.css -o ./assets/css/tailwind.min.css --watch"
     },

@@ -9,7 +9,10 @@ import time
 import tempfile
 import html
 import threading
+import gc
+import atexit
 from datetime import datetime, date
+from typing import Dict, List, Optional, Union, Any, Tuple, Set
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, TemplateSyntaxError
 import re
 import requests
@@ -31,19 +34,30 @@ GOOGLE_FONTS_API = 'https://fonts.googleapis.com/css2?family={font_name}:wght@{w
 # Thread-local storage for FileProcessor instances
 thread_local = threading.local()
 
-def initializer(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug):
+def initializer(
+    templates_dir: str, 
+    output_dir: str, 
+    images_dir: str, 
+    categories: Dict[int, Any], 
+    tags: Dict[int, Any], 
+    authors: Dict[int, Any], 
+    pages: List[Dict[str, Any]], 
+    site_url: str, 
+    content_dir: str, 
+    blog_slug: str
+) -> None:
     """Initialize FileProcessor instance in thread-local storage for each worker process."""
     session = requests.Session()
     # Initialize URL validator and safe requestor for each worker
     url_validator = URLValidator()
     safe_requestor = SafeRequestor(url_validator, session)
     thread_local.file_processor = FileProcessor(templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=session, safe_requestor=safe_requestor)
-    
+
     # Register cleanup to close session when process ends
     import atexit
     atexit.register(cleanup_session)
 
-def cleanup_session():
+def cleanup_session() -> None:
     """Cleanup function to close session when worker process ends."""
     if hasattr(thread_local, 'file_processor') and hasattr(thread_local.file_processor, 'session'):
         try:
@@ -51,8 +65,26 @@ def cleanup_session():
         except:
             pass  # Ignore errors during cleanup
 
+def process_file(file_path: str, is_page: bool) -> Dict[str, Any]:
+    """Process a file using the thread-local FileProcessor."""
+    return thread_local.file_processor.process(file_path, is_page)
+
 class FileProcessor:
-    def __init__(self, templates_dir, output_dir, images_dir, categories, tags, authors, pages, site_url, content_dir, blog_slug, session=None, safe_requestor=None):
+    def __init__(
+        self, 
+        templates_dir: str, 
+        output_dir: str, 
+        images_dir: str, 
+        categories: Dict[int, Any], 
+        tags: Dict[int, Any], 
+        authors: Dict[int, Any], 
+        pages: List[Dict[str, Any]], 
+        site_url: str, 
+        content_dir: str, 
+        blog_slug: str, 
+        session: Optional[requests.Session] = None, 
+        safe_requestor: Optional[Any] = None
+    ) -> None:
         self.templates_dir = templates_dir
         self.output_dir = output_dir
         self.images_dir = images_dir
@@ -73,16 +105,16 @@ class FileProcessor:
         self.env = Environment(loader=FileSystemLoader(templates_dir))
         self.markdown_parser = self.create_markdown_parser()
 
-    def markdown_filter(self, text):
+    def markdown_filter(self, text: str) -> str:
         """Convert markdown text to HTML."""
         return self.markdown_parser(text)
 
-    def create_markdown_parser(self):
+    def create_markdown_parser(self) -> Any:
         """Create a Mistune markdown parser with a custom renderer."""
         class CustomRenderer(mistune.HTMLRenderer):
-            def __init__(self):
+            def __init__(self) -> None:
                 super().__init__(escape=False)
-            def block_code(self, code, info=None):
+            def block_code(self, code: str, info: Optional[str] = None) -> str:
                 escaped_code = mistune.escape(code)
                 return '<pre style="white-space: pre-wrap;"><code>{}</code></pre>'.format(escaped_code)
         return mistune.create_markdown(
@@ -90,24 +122,69 @@ class FileProcessor:
             plugins=['table', 'task_lists', 'strikethrough']
         )
 
-    def parse_date(self, date_str):
-        """Parse a date string."""
+    def parse_date(self, date_str: Union[str, datetime, date]) -> datetime:
+        """
+        Parse a date string with enhanced format support and error handling.
+        
+        Supports 16 different date formats with performance optimization.
+        Most common formats are checked first for better performance.
+        
+        Args:
+            date_str: String, datetime, or date object to parse
+            
+        Returns:
+            datetime: Parsed datetime object, or datetime.min if parsing fails
+        """
         if isinstance(date_str, datetime):
             return date_str
         elif isinstance(date_str, date):
             return datetime(date_str.year, date_str.month, date_str.day)
         elif isinstance(date_str, str):
-            for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%d', '%b %d, %Y']:
+            # Strip whitespace and normalize
+            date_str = date_str.strip()
+            if not date_str:
+                self.logger.warning("Empty date string provided, using minimum date")
+                return datetime.min
+
+            # Performance-optimized format list (most common first)
+            date_formats = [
+                '%Y-%m-%d',           # 2025-06-12 (most common)
+                '%Y-%m-%dT%H:%M:%S',  # 2025-06-12T14:30:00 (ISO format)
+                '%b %d, %Y',          # Jun 12, 2025 (short month)
+                '%B %d, %Y',          # June 12, 2025 (full month)
+                '%Y-%m-%d %H:%M:%S',  # 2025-06-12 14:30:00
+                '%m/%d/%Y',           # 06/12/2025 (US format)
+                '%d/%m/%Y',           # 12/06/2025 (EU format)
+                '%Y/%m/%d',           # 2025/06/12 (Asian format)
+                '%m-%d-%Y',           # 06-12-2025
+                '%d-%m-%Y',           # 12-06-2025
+                '%Y.%m.%d',           # 2025.06.12
+                '%d.%m.%Y',           # 12.06.2025
+                '%b %d %Y',           # Jun 12 2025 (no comma)
+                '%B %d %Y',           # June 12 2025 (no comma)
+                '%Y-%m-%dT%H:%M:%SZ', # 2025-06-12T14:30:00Z (UTC)
+                '%Y-%m-%dT%H:%M:%S.%f' # 2025-06-12T14:30:00.123456 (microseconds)
+            ]
+
+            for fmt in date_formats:
                 try:
                     return datetime.strptime(date_str, fmt)
                 except ValueError:
                     continue
-        return datetime.min
 
-    def download_image(self, url, output_dir):
-        """Download an image and save it locally with SSRF protection."""
+            # If all formats fail, log warning and return minimum date
+            self.logger.warning(f"Unable to parse date '{date_str}' with any supported format. Using minimum date as fallback.")
+            return datetime.min
+        else:
+            self.logger.warning(f"Invalid date type: {type(date_str)}. Expected string, date, or datetime.")
+            return datetime.min
+
+    def download_image(self, url: str, output_dir: str) -> Optional[str]:
+        """Download an image and save it locally with comprehensive security protection."""
+        # File extension validation
         if not url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
             return None
+        # Ensure output directory exists
         try:
             if url.startswith('http'):
                 # Validate URL for SSRF protection
@@ -115,77 +192,263 @@ class FileProcessor:
                 if not is_valid:
                     self.logger.warning(f"SSRF protection blocked URL {url}: {error_msg}")
                     return None
-                
-                # Make safe request
-                success, result = self.safe_requestor.safe_get(url, timeout=30, allow_redirects=True)
+
+                # Make safe request with streaming enabled and size limit
+                success, result = self.safe_requestor.safe_get(
+                    url, 
+                    timeout=30, 
+                    allow_redirects=True,
+                    stream=True  # Enable streaming for large files
+                )
                 if not success:
                     self.logger.warning(f"Failed to download image {url}: {result}")
                     return None
-                
-                response = result
-                # Security fix: Validate and sanitize filename to prevent path traversal
-                image_name = os.path.basename(url)
-                # Remove directory traversal sequences and invalid characters
-                image_name = os.path.basename(os.path.normpath(image_name))
-                if '..' in image_name or '/' in image_name or '\\' in image_name:
-                    # Generate safe filename from URL hash if suspicious
-                    image_name = hashlib.md5(url.encode()).hexdigest() + os.path.splitext(image_name)[1]
-                image_path = os.path.join(output_dir, image_name)
-                # Verify the final path is within output_dir
-                if not os.path.abspath(image_path).startswith(os.path.abspath(output_dir)):
-                    raise ValueError(f"Path traversal attempt detected: {image_name}")
-                try:
-                    with open(image_path, 'wb') as image_file:
-                        image_file.write(response.content)
-                    return image_path
-                except (IOError, OSError, PermissionError) as e:
-                    self.logger.error(f"Failed to write downloaded image {image_path}: {e}")
-                    return None
+
+                # Enhanced memory management: Use context manager for response handling
+                with result as response:
+                    # Content-Type validation
+                    content_type = response.headers.get('content-type', '').lower()
+                    valid_content_types = {
+                        'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
+                        'image/webp', 'image/bmp', 'image/tiff', 'image/tif'
+                    }
+                    if content_type and not any(ct in content_type for ct in valid_content_types):
+                        self.logger.warning(f"Invalid content type for image {url}: {content_type}")
+                        return None
+                    
+                    # File size validation (10MB limit)
+                    content_length = response.headers.get('content-length')
+                    max_size = 10 * 1024 * 1024  # 10MB
+                    if content_length and int(content_length) > max_size:
+                        self.logger.warning(f"Image too large {url}: {content_length} bytes (max {max_size})")
+                        return None
+                    
+                    # Enhanced filename sanitization
+                    image_name = self._sanitize_filename(url, output_dir)
+                    image_path = os.path.join(output_dir, image_name)
+                    
+                    # Verify the final path is within output_dir (path traversal protection)
+                    if not os.path.abspath(image_path).startswith(os.path.abspath(output_dir)):
+                        self.logger.error(f"Path traversal attempt detected: {image_name}")
+                        return None
+
+                    # Enhanced memory management: Stream-based download with proper resource cleanup
+                    try:
+                        downloaded_size = 0
+                        # Use context manager for file operations
+                        with open(image_path, 'wb') as image_file:
+                            # Process in chunks to minimize memory usage
+                            for chunk in response.iter_content(chunk_size=8192):
+                                if chunk:  # filter out keep-alive chunks
+                                    downloaded_size += len(chunk)
+                                    # Runtime size check to prevent memory exhaustion
+                                    if downloaded_size > max_size:
+                                        self.logger.warning(f"Image download exceeded size limit during streaming {url}: {downloaded_size} bytes")
+                                        # Remove partial file with proper error handling
+                                        self._safe_remove_file(image_path)
+                                        return None
+                                    image_file.write(chunk)
+                                    # Explicit chunk cleanup for large files
+                                    del chunk
+
+                        # Final size verification
+                        if os.path.getsize(image_path) > max_size:
+                            self.logger.warning(f"Downloaded image too large {url}: {os.path.getsize(image_path)} bytes")
+                            self._safe_remove_file(image_path)
+                            return None
+
+                        self.logger.debug(f"Successfully downloaded image: {url} -> {image_name} ({downloaded_size} bytes)")
+                        return image_path
+
+                    except (IOError, OSError, PermissionError) as e:
+                        self.logger.error(f"Failed to write downloaded image {image_path}: {e}")
+                        # Clean up partial file with enhanced error handling
+                        self._safe_remove_file(image_path)
+                        return None
+
             return None
         except Exception as e:
             self.logger.error(f"Unexpected error downloading image {url}: {e}")
             return None
 
-    def convert_image_to_webp(self, image_path):
+    def _sanitize_filename(self, url: str, output_dir: str) -> str:
+        """Enhanced filename sanitization with security checks."""
+        try:
+            # Extract filename from URL
+            parsed_url = urlparse(url)
+            filename = os.path.basename(parsed_url.path)
+
+            # If no filename in path, generate from URL hash
+            if not filename or '.' not in filename:
+                url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
+                # Try to detect extension from URL or use .jpg as default
+                if url.lower().endswith(('.png', '.gif', '.webp', '.bmp', '.tiff')):
+                    ext = '.' + url.lower().split('.')[-1]
+                else:
+                    ext = '.jpg'
+                filename = f"image_{url_hash}{ext}"
+
+            # Remove query parameters and fragments
+            filename = filename.split('?')[0].split('#')[0]
+
+            # Comprehensive sanitization
+            filename = os.path.basename(os.path.normpath(filename))
+
+            # Remove dangerous characters and patterns
+            dangerous_chars = '<>:"|?*\\/\x00-\x1f'
+            for char in dangerous_chars:
+                filename = filename.replace(char, '_')
+
+            # Remove directory traversal sequences
+            filename = filename.replace('..', '_')
+
+            # Ensure filename isn't empty and has proper extension
+            if not filename or len(filename) < 3:
+                url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
+                filename = f"image_{url_hash}.jpg"
+
+            # Ensure it has a valid image extension
+            valid_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')
+            if not any(filename.lower().endswith(ext) for ext in valid_extensions):
+                filename += '.jpg'
+
+            # Length limit (255 characters for most filesystems)
+            if len(filename) > 255:
+                name_part, ext_part = os.path.splitext(filename)
+                max_name_length = 255 - len(ext_part)
+                filename = name_part[:max_name_length] + ext_part
+
+            # Check if file already exists and make unique if necessary
+            original_filename = filename
+            counter = 1
+            while os.path.exists(os.path.join(output_dir, filename)):
+                name_part, ext_part = os.path.splitext(original_filename)
+                filename = f"{name_part}_{counter}{ext_part}"
+                counter += 1
+                # Prevent infinite loop
+                if counter > 1000:
+                    url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
+                    filename = f"image_{url_hash}_{counter}.jpg"
+                    break
+
+            return filename
+
+        except Exception as e:
+            # Fallback to hash-based filename if sanitization fails
+            self.logger.warning(f"Filename sanitization failed for {url}: {e}")
+            url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
+            return f"image_{url_hash}.jpg"
+
+    def _safe_remove_file(self, file_path: str) -> None:
+        """Safely remove a file with proper error handling."""
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                self.logger.debug(f"Cleaned up file: {file_path}")
+        except (OSError, PermissionError) as e:
+            self.logger.warning(f"Failed to remove file {file_path}: {e}")
+        except Exception as e:
+            self.logger.error(f"Unexpected error removing file {file_path}: {e}")
+
+    def convert_image_to_webp(self, image_path: str) -> Optional[str]:
+        """Convert image to WebP format with enhanced memory management."""
         try:
             # Skip if path is a directory
             if os.path.isdir(image_path):
                 return None
-                
+
             ext = os.path.splitext(image_path)[1].lower()
             webp_path = image_path.rsplit('.', 1)[0] + '.webp'
 
-            if ext == ".gif":
-                with Image.open(image_path) as img:
-                    img.save(webp_path, "WEBP", save_all=True)
-            else:
-                with Image.open(image_path) as img:
-                    img.save(webp_path, "WEBP")
+            # Enhanced memory management for image processing
+            try:
+                if ext == ".gif":
+                    # Process GIF with animation preservation and memory optimization
+                    with Image.open(image_path) as img:
+                        # Check if image is too large for memory-safe processing
+                        width, height = img.size
+                        pixel_count = width * height
+                        # Conservative limit: ~50MP for animated GIFs
+                        if pixel_count > 50_000_000:
+                            self.logger.warning(f"GIF image too large for safe processing: {width}x{height} ({pixel_count} pixels)")
+                            return None
 
-            os.remove(image_path)
-            return webp_path
+                        # Preserve animation with lossless quality (matches old gif2webp -lossless)
+                        img.save(webp_path, "WEBP", save_all=True, lossless=True, method=6)
+
+                        # Explicit cleanup for large GIF frames
+                        if hasattr(img, 'close'):
+                            img.close()
+                else:
+                    # Process static images with memory optimization
+                    with Image.open(image_path) as img:
+                        # Memory optimization: Check image size
+                        width, height = img.size
+                        pixel_count = width * height
+                        # Conservative limit: ~100MP for static images
+                        if pixel_count > 100_000_000:
+                            self.logger.warning(f"Static image too large for safe processing: {width}x{height} ({pixel_count} pixels)")
+                            return None
+
+                        # Convert with optimized settings
+                        img.save(webp_path, "WEBP", quality=85, method=6, optimize=True)
+
+                        # Explicit cleanup
+                        if hasattr(img, 'close'):
+                            img.close()
+
+                # Verify conversion was successful
+                if not os.path.exists(webp_path):
+                    self.logger.error(f"WebP conversion failed - output file not created: {webp_path}")
+                    return None
+
+                # Verify output file is valid and non-empty
+                if os.path.getsize(webp_path) == 0:
+                    self.logger.error(f"WebP conversion failed - output file is empty: {webp_path}")
+                    self._safe_remove_file(webp_path)
+                    return None
+
+                # Clean up original file after successful conversion
+                self._safe_remove_file(image_path)
+
+                self.logger.debug(f"Successfully converted to WebP: {image_path} -> {webp_path}")
+                return webp_path
+
+            except (Image.DecompressionBombError, Image.DecompressionBombWarning) as e:
+                self.logger.error(f"Image too large or potentially malicious: {image_path} - {e}")
+                self._safe_remove_file(webp_path)  # Clean up any partial output
+                return None
+            except MemoryError as e:
+                self.logger.error(f"Insufficient memory to process image: {image_path} - {e}")
+                self._safe_remove_file(webp_path)  # Clean up any partial output
+                return None
+            except Exception as e:
+                self.logger.error(f"Failed to convert {image_path}: {e}")
+                self._safe_remove_file(webp_path)  # Clean up any partial output
+                return None
+                
         except Exception as e:
             self.logger.error(f"Failed to convert {image_path}: {e}")
             return None
 
-    def copy_local_image(self, local_image_path):
+    def copy_local_image(self, local_image_path: str) -> Optional[str]:
         """
-        Copy a local image (already on disk) to self.images_dir.
+        Copy a local image (already on disk) to self.images_dir with enhanced memory management.
         Return the path to the newly-copied image, or None if it doesn't exist.
         """
         if not os.path.exists(local_image_path):
             return None
 
-        # Security fix: Validate and sanitize filename to prevent path traversal
+        # Validate and sanitize filename to prevent path traversal
         image_name = os.path.basename(local_image_path)
         # Remove directory traversal sequences and invalid characters
         image_name = os.path.basename(os.path.normpath(image_name))
         if '..' in image_name or '/' in image_name or '\\' in image_name:
             # Generate safe filename from path hash if suspicious
             image_name = hashlib.md5(local_image_path.encode()).hexdigest() + os.path.splitext(image_name)[1]
-        
+
         dest_path = os.path.join(self.images_dir, image_name)
-        
+
         # Verify the final path is within images_dir
         if not os.path.abspath(dest_path).startswith(os.path.abspath(self.images_dir)):
             raise ValueError(f"Path traversal attempt detected: {image_name}")
@@ -193,18 +456,31 @@ class FileProcessor:
         # Only copy if not already present
         if not os.path.exists(dest_path):
             try:
+                # Enhanced memory management: Check file size before copying
+                file_size = os.path.getsize(local_image_path)
+                max_size = 50 * 1024 * 1024  # 50MB limit for local files
+                if file_size > max_size:
+                    self.logger.warning(f"Local image too large: {local_image_path} ({file_size} bytes, max {max_size})")
+                    return None
+
+                # Use shutil.copy2 for efficient copying with metadata preservation
                 shutil.copy2(local_image_path, dest_path)
-                self.logger.debug(f"Copied local image: {local_image_path} -> {dest_path}")
+                self.logger.debug(f"Copied local image: {local_image_path} -> {dest_path} ({file_size} bytes)")
+
             except (IOError, OSError, PermissionError) as e:
                 self.logger.error(f"Failed to copy image {local_image_path}: {e}")
+                # Clean up any partial copy
+                self._safe_remove_file(dest_path)
                 return None
             except Exception as e:
                 self.logger.error(f"Unexpected error copying image {local_image_path}: {e}")
+                # Clean up any partial copy
+                self._safe_remove_file(dest_path)
                 return None
 
         return dest_path
 
-    def process_images(self, content, markdown_file_path=None):
+    def process_images(self, content: str, markdown_file_path: Optional[str] = None) -> Tuple[str, int]:
         """
         Find image references (Markdown, <img>, <a href>, srcset), including local/relative paths.
         Download/copy them to images_dir, convert to .webp, then update references in content.
@@ -226,7 +502,14 @@ class FileProcessor:
         local_image_paths = {}
         images_converted = 0
 
+        # Enhanced memory management: Process images with resource monitoring
+        total_images = len(image_urls)
+        processed_count = 0
+
         for url in image_urls:
+            processed_count += 1
+            self.logger.debug(f"Processing image {processed_count}/{total_images}: {url}")
+
             image_path = None
             # Check if URL is local (relative path)
             if not url.startswith('http') and not url.startswith('//'):
@@ -260,6 +543,13 @@ class FileProcessor:
                         webp_name = hashlib.md5(webp_path.encode()).hexdigest() + '.webp'
                     local_image_paths[url] = f"images/{webp_name}"
 
+                # Enhanced memory management: Explicit cleanup and garbage collection hints
+                # for large image processing batches
+                if processed_count % 10 == 0:  # Every 10 images
+                    import gc
+                    gc.collect()  # Suggest garbage collection for large batches
+                    self.logger.debug(f"Memory cleanup after processing {processed_count} images")
+
         # Replace src, href, and srcset references in content
         for original_url, new_path in local_image_paths.items():
             content = content.replace(f'src="{original_url}"', f'src="{new_path}"')
@@ -269,7 +559,7 @@ class FileProcessor:
 
         return content, images_converted
 
-    def parse_markdown_with_metadata(self, filepath):
+    def parse_markdown_with_metadata(self, filepath: str) -> Tuple[Dict[str, Any], str]:
         """Parse a markdown file with YAML front matter."""
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
@@ -292,7 +582,7 @@ class FileProcessor:
 
         return metadata, markdown_content
 
-    def format_date(self, date_str=None):
+    def format_date(self, date_str: Optional[Union[str, datetime, date]] = None) -> str:
         """Format a date string for display."""
         if date_str is None:
             date_obj = datetime.now()
@@ -300,7 +590,7 @@ class FileProcessor:
             date_obj = self.parse_date(date_str)
         return date_obj.strftime('%B %d, %Y')
 
-    def get_author_name(self, author_id):
+    def get_author_name(self, author_id: Union[int, str]) -> str:
         """Get author name from ID."""
         # Handle both string and int author IDs
         if isinstance(author_id, str):
@@ -308,7 +598,7 @@ class FileProcessor:
                 author_id = int(author_id)
             except ValueError:
                 return str(author_id)  # If it's already a name, return it
-        
+
         # Get the author value - it could be a string or dict
         author = self.authors.get(author_id)
         if author:
@@ -384,7 +674,7 @@ class FileProcessor:
             except Exception as e:
                 self.logger.error(f"Unexpected error writing HTML file {output_file_path}: {e}")
                 return False
-                
+
             return True
         except (TemplateNotFound, TemplateSyntaxError) as e:
             self.logger.error(f"Template error for {post_slug}: {e}")
@@ -402,24 +692,24 @@ class FileProcessor:
         """Process a single markdown file."""
         try:
             metadata, markdown_content = self.parse_markdown_with_metadata(file_path)
-            
+
             # Process images in the content
             processed_content, images_converted = self.process_images(markdown_content, file_path)
-            
+
             # Convert to HTML
             html_content = self.markdown_filter(processed_content)
-            
+
             # Determine slug and output directory
             slug = metadata.get('slug', os.path.splitext(os.path.basename(file_path))[0])
-            
+
             if is_page:
                 output_dir = os.path.join(self.output_dir, slug)
             else:
                 output_dir = os.path.join(self.output_dir, self.blog_slug, slug)
-            
+
             # Build the post or page
             success = self.build_post_or_page(metadata, html_content, slug, output_dir, is_page)
-            
+
             # Return simple format like original stattic.py for performance
             if is_page:
                 # Pages do not produce post_metadata
@@ -427,11 +717,13 @@ class FileProcessor:
             else:
                 # Prepare metadata for the main index page
                 permalink = f"{self.blog_slug}/{slug}/"
+                raw_date = metadata.get('date')
                 post_meta = {
                     'title': metadata.get('title', 'Untitled'),
                     'excerpt': metadata.get('excerpt') or self.generate_excerpt(processed_content),
                     'permalink': permalink,
-                    'date': self.format_date(metadata.get('date')),
+                    'date': self.format_date(raw_date),  # Formatted date for display
+                    'raw_date': raw_date,  # Raw date for sitemap and sorting
                     'metadata': metadata
                 }
                 return {"post_metadata": post_meta, "images_converted": images_converted}
@@ -439,7 +731,7 @@ class FileProcessor:
             self.logger.error(f"Error processing {file_path}: {e}")
             return {"post_metadata": None, "images_converted": 0}
 
-    def calculate_relative_path(self, current_output_dir):
+    def calculate_relative_path(self, current_output_dir: str) -> str:
         """Calculate relative path from current directory to root."""
         rel_path = os.path.relpath(self.output_dir, current_output_dir)
         # Ensure relative path ends with '/' for proper asset linking
@@ -450,7 +742,7 @@ class FileProcessor:
 
 class InfoFilter(logging.Filter):
     """Filter to allow only selected INFO messages to be shown in the console."""
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         allowed_messages = [
             "Site build completed in",
             "Total posts generated:",
@@ -466,17 +758,17 @@ class InfoFilter(logging.Filter):
         ]
         return any(msg in record.getMessage() for msg in allowed_messages)
 
-def site_title_from_url(url):
+def site_title_from_url(url: str) -> str:
     domain = urlparse(url).netloc.replace("www.", "")
     return domain
 
 class Stattic:
-    def create_markdown_parser(self):
+    def create_markdown_parser(self) -> Any:
         """Create a Mistune markdown parser with a custom renderer."""
         class CustomRenderer(mistune.HTMLRenderer):
-            def __init__(self):
+            def __init__(self) -> None:
                 super().__init__(escape=False)
-            def block_code(self, code, info=None):
+            def block_code(self, code: str, info: Optional[str] = None) -> str:
                 escaped_code = mistune.escape(code)
                 return '<pre style="white-space: pre-wrap;"><code>{}</code></pre>'.format(escaped_code)
         return mistune.create_markdown(
@@ -484,11 +776,24 @@ class Stattic:
             plugins=['table', 'task_lists', 'strikethrough']
         )
 
-    def markdown_filter(self, text):
+    def markdown_filter(self, text: str) -> str:
         """Convert markdown text to HTML."""
         return self.markdown_parser(text)
 
-    def __init__(self, content_dir='content', templates_dir='templates', output_dir='output', posts_per_page=5, sort_by='date', fonts=None, site_url=None, assets_dir=None, blog_slug='blog', site_title=None, site_tagline=None):
+    def __init__(
+        self, 
+        content_dir: str = 'content', 
+        templates_dir: str = 'templates', 
+        output_dir: str = 'output', 
+        posts_per_page: int = 5, 
+        sort_by: str = 'date', 
+        fonts: Optional[List[str]] = None, 
+        site_url: Optional[str] = None, 
+        assets_dir: Optional[str] = None, 
+        blog_slug: str = 'blog', 
+        site_title: Optional[str] = None, 
+        site_tagline: Optional[str] = None
+    ) -> None:
         self.content_dir = content_dir
         self.templates_dir = templates_dir
         self.output_dir = output_dir
@@ -535,15 +840,15 @@ class Stattic:
 
         # Set up shared Jinja2 environment (used for main templates like index, blog list)
         self.env = Environment(loader=FileSystemLoader(self.templates_dir))
-        
+
         # Initialize markdown parser
         self.markdown_parser = self.create_markdown_parser()
 
-    def setup_logging(self):
+    def setup_logging(self) -> None:
         """Set up logging configuration."""
         self.logger = logging.getLogger('Stattic')
         self.logger.setLevel(logging.INFO)
-        
+
         if not self.logger.handlers:
             # Console handler with filter
             console_handler = logging.StreamHandler()
@@ -558,17 +863,17 @@ class Stattic:
             os.makedirs(logs_dir, exist_ok=True)
             log_filename = datetime.now().strftime('stattic_%Y-%m-%d_%H-%M-%S.log')
             log_filepath = os.path.join(logs_dir, log_filename)
-            
+
             file_handler = logging.FileHandler(log_filepath)
             file_handler.setLevel(logging.DEBUG)
             file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             file_handler.setFormatter(file_formatter)
             self.logger.addHandler(file_handler)
 
-    def minify_assets(self):
+    def minify_assets(self) -> None:
         """Minify CSS and JS assets."""
         assets_output_dir = os.path.join(self.output_dir, 'assets')
-        
+
         # Minify CSS files
         css_dir = os.path.join(assets_output_dir, 'css')
         if os.path.exists(css_dir):
@@ -607,7 +912,7 @@ class Stattic:
                     except Exception as e:
                         self.logger.error(f"Unexpected error minifying JS file {file}: {e}")
 
-    def load_categories_and_tags(self, type_name):
+    def load_categories_and_tags(self, type_name: str) -> Dict[int, Any]:
         """Load categories or tags from YAML file."""
         file_path = os.path.join(self.content_dir, f'{type_name}.yml')
         if os.path.exists(file_path):
@@ -622,7 +927,7 @@ class Stattic:
                 return {}
         return {}
 
-    def load_authors(self):
+    def load_authors(self) -> Dict[int, Any]:
         """Load authors from YAML file."""
         file_path = os.path.join(self.content_dir, 'authors.yml')
         if os.path.exists(file_path):
@@ -637,7 +942,7 @@ class Stattic:
                 return {}
         return {}
 
-    def get_author_name(self, author_id):
+    def get_author_name(self, author_id: Union[int, str]) -> str:
         """Get author name from ID."""
         # Handle both string and int author IDs
         if isinstance(author_id, str):
@@ -645,7 +950,7 @@ class Stattic:
                 author_id = int(author_id)
             except ValueError:
                 return str(author_id)  # If it's already a name, return it
-        
+
         # Get the author value - it could be a string or dict
         author = self.authors.get(author_id)
         if author:
@@ -659,7 +964,7 @@ class Stattic:
                 return str(author)
         return 'Unknown Author'
 
-    def load_pages(self):
+    def load_pages(self) -> None:
         """Load static pages metadata."""
         pages_dir = os.path.join(self.content_dir, 'pages')
         if os.path.exists(pages_dir):
@@ -668,19 +973,19 @@ class Stattic:
                     file_path = os.path.join(pages_dir, file)
                     with open(file_path, 'r', encoding='utf-8') as f:
                         content = f.read()
-                    
+
                     parts = content.split('---', 2)
                     if len(parts) >= 3:
                         metadata = yaml.safe_load(parts[1])
                         slug = metadata.get('slug', os.path.splitext(file)[0])
-                        
+
                         # Add permalink for navigation
                         metadata['permalink'] = f"/{slug}/"
-                        
+
                         # Add page metadata to self.pages list
                         self.pages.append(metadata)
 
-    def download_fonts(self):
+    def download_fonts(self) -> None:
         """Download Google Fonts if specified with SSRF protection."""
         if not self.fonts:
             return
@@ -691,14 +996,14 @@ class Stattic:
         for font in self.fonts:
             font_name = font.replace(' ', '+')
             font_url = GOOGLE_FONTS_API.format(font_name=font_name, weights='400;700')
-            
+
             try:
                 # Validate Google Fonts URL with SSRF protection
                 success, result = self.safe_requestor.safe_google_fonts_get(font_url, timeout=30, allow_redirects=True)
                 if not success:
                     self.logger.error(f"Failed to download font {font}: {result}")
                     continue
-                
+
                 response = result
                 font_css_path = os.path.join(fonts_dir, f'{font.replace(" ", "_").lower()}.css')
                 try:
@@ -712,68 +1017,68 @@ class Stattic:
                 self.logger.error(f"Unexpected error downloading font {font}: {e}")
                 continue
 
-    def download_google_fonts(self):
+    def download_google_fonts(self) -> None:
         """Download Google Fonts and generate fonts.css file."""
         if not self.fonts:
             # Default to Quicksand if no fonts provided
             self.fonts = ['Quicksand']
-        
+
         # Check if fonts were preserved from previous build
         if getattr(self, '_fonts_cached', False):
             self.logger.debug("Fonts preserved from cache, skipping download")
             return
-        
+
         # Create fonts directory
         fonts_dir = os.path.join(self.output_dir, 'assets', 'fonts')
         os.makedirs(fonts_dir, exist_ok=True)
-        
+
         fonts_css_path = os.path.join(self.output_dir, 'assets', 'css', 'fonts.css')
         os.makedirs(os.path.dirname(fonts_css_path), exist_ok=True)
-        
+
         # Double-check if fonts are already cached (in case something changed)
         if self._fonts_are_cached(fonts_css_path, fonts_dir):
             self.logger.debug("Fonts already cached, skipping download")
             return
-        
+
         css_content = "/* Google Fonts - Downloaded for offline use */\n\n"
-        
+
         # Standard Google Font weights - reduced for performance
         font_weights = [400, 700]  # Only download regular and bold
-        
+
         for font in self.fonts:
             try:
                 # Clean font name for API and filenames
                 font_cleaned = font.strip().replace(' ', '+')
                 font_slug = font.strip().lower().replace(' ', '-')
-                
+
                 self.logger.info(f"Downloading font: {font}")
-                
+
                 for weight in font_weights:
                     # Define local filenames
                     woff2_name = f"{font_slug}-{weight}.woff2"
                     ttf_name = f"{font_slug}-{weight}.ttf"
                     woff2_path = os.path.join(fonts_dir, woff2_name)
                     ttf_path = os.path.join(fonts_dir, ttf_name)
-                    
+
                     # Only download if file doesn't exist or is empty (caching)
                     if not os.path.exists(woff2_path) or os.path.getsize(woff2_path) == 0:
                         # Build the Google Fonts CSS2 API URL
                         google_font_url = f'https://fonts.googleapis.com/css2?family={font_cleaned}:wght@{weight}&display=swap'
-                        
+
                         # Fetch the CSS with SSRF protection
                         success, result = self.safe_requestor.safe_google_fonts_get(google_font_url, timeout=10, allow_redirects=True)
                         if not success:
                             self.logger.warning(f"Failed to fetch Google Fonts CSS {google_font_url}: {result}")
                             continue
-                        
+
                         response = result
                         css_data = response.text
-                        
+
                         # Extract font file URLs
                         font_urls = re.findall(r'url\((https://fonts\.gstatic\.com/[^)]+)\)', css_data)
                         if not font_urls:
                             continue  # No font files found
-                        
+
                         # Download the first available URL (typically woff2)
                         for font_url in font_urls:
                             # Validate and download font file with SSRF protection
@@ -791,7 +1096,7 @@ class Stattic:
                             else:
                                 self.logger.warning(f"Failed to download font file {font_url}: {result}")
                                 continue
-                    
+
                     # Generate @font-face CSS rule (only if the font file exists)
                     if os.path.exists(woff2_path) and os.path.getsize(woff2_path) > 0:
                         css_content += f"""@font-face {{
@@ -804,10 +1109,10 @@ class Stattic:
 }}
 
 """
-            
+
             except Exception as e:
                 self.logger.warning(f"Failed to download font {font}: {e}")
-        
+
         # Add body font-family rule
         if self.fonts:
             body_font = self.fonts[0].strip()
@@ -816,7 +1121,7 @@ body {{
     font-family: '{body_font}', sans-serif;
 }}
 """
-        
+
         # Write fonts.css file
         try:
             with open(fonts_css_path, 'w', encoding='utf-8') as f:
@@ -824,14 +1129,14 @@ body {{
         except (IOError, OSError, PermissionError) as e:
             self.logger.error(f"Failed to write fonts CSS file {fonts_css_path}: {e}")
             return False
-        
+
         self.logger.info(f"Generated fonts.css with {len(self.fonts)} font families")
 
-    def _fonts_are_cached(self, fonts_css_path, fonts_dir):
+    def _fonts_are_cached(self, fonts_css_path: str, fonts_dir: str) -> bool:
         """Check if fonts are already cached and CSS file exists."""
         if not os.path.exists(fonts_css_path):
             return False
-        
+
         # Check if all expected font files exist
         font_weights = [400, 700]  # Match the download weights
         for font in self.fonts:
@@ -841,29 +1146,29 @@ body {{
                 woff2_path = os.path.join(fonts_dir, woff2_name)
                 if not os.path.exists(woff2_path) or os.path.getsize(woff2_path) == 0:
                     return False
-        
+
         # Check if CSS file contains references to all current fonts
         try:
             with open(fonts_css_path, 'r', encoding='utf-8') as f:
                 css_content = f.read()
-            
+
             for font in self.fonts:
                 if f"font-family: '{font.strip()}'" not in css_content:
                     return False
-            
+
             return True
         except Exception:
             return False
 
-    def copy_assets_to_output(self):
+    def copy_assets_to_output(self) -> None:
         """Copy assets directory to output, preserving cached fonts."""
         output_assets_dir = os.path.join(self.output_dir, 'assets')
-        
+
         # Check if fonts are cached before clearing anything
         fonts_dir = os.path.join(output_assets_dir, 'fonts')
         fonts_css_path = os.path.join(output_assets_dir, 'css', 'fonts.css')
         fonts_cached = self._fonts_are_cached(fonts_css_path, fonts_dir)
-        
+
         # Copy assets as normal
         if self.assets_dir and os.path.exists(self.assets_dir):
             try:
@@ -893,41 +1198,41 @@ body {{
                 self.logger.info("Copied assets from local assets directory")
             except (IOError, OSError, PermissionError) as e:
                 self.logger.error(f"Failed to copy assets from local assets directory: {e}")
-        
+
         # Set flag to indicate if fonts were preserved
         self._fonts_cached = fonts_cached
 
-    def _copy_assets_preserving_fonts(self, source_assets, output_assets_dir, fonts_dir, fonts_css_path):
+    def _copy_assets_preserving_fonts(self, source_assets: str, output_assets_dir: str, fonts_dir: str, fonts_css_path: str) -> None:
         """Copy assets while preserving cached fonts."""
         import tempfile
-        
+
         try:
             # Backup cached fonts
             temp_dir = tempfile.mkdtemp()
             fonts_backup = os.path.join(temp_dir, 'fonts')
             fonts_css_backup = os.path.join(temp_dir, 'fonts.css')
-            
+
             shutil.copytree(fonts_dir, fonts_backup)
             shutil.copy2(fonts_css_path, fonts_css_backup)
-            
+
             # Clear and copy assets
             shutil.rmtree(output_assets_dir)
             shutil.copytree(source_assets, output_assets_dir)
-            
+
             # Restore cached fonts
             fonts_dir_new = os.path.join(output_assets_dir, 'fonts')
             fonts_css_path_new = os.path.join(output_assets_dir, 'css', 'fonts.css')
-            
+
             # Ensure directories exist
             os.makedirs(fonts_dir_new, exist_ok=True)
             os.makedirs(os.path.dirname(fonts_css_path_new), exist_ok=True)
-            
+
             # Restore fonts
             if os.path.exists(fonts_dir_new):
                 shutil.rmtree(fonts_dir_new)
             shutil.copytree(fonts_backup, fonts_dir_new)
             shutil.copy2(fonts_css_backup, fonts_css_path_new)
-            
+
             # Cleanup temp directory
             shutil.rmtree(temp_dir)
         except (IOError, OSError, PermissionError) as e:
@@ -939,30 +1244,30 @@ body {{
                 except:
                     pass
 
-    def _clean_assets_preserving_fonts(self, assets_path, fonts_dir, fonts_css_path):
+    def _clean_assets_preserving_fonts(self, assets_path: str, fonts_dir: str, fonts_css_path: str) -> None:
         """Clean assets directory while preserving cached fonts."""
         import tempfile
-        
+
         # Backup cached fonts
         temp_dir = tempfile.mkdtemp()
         fonts_backup = os.path.join(temp_dir, 'fonts')
         fonts_css_backup = os.path.join(temp_dir, 'fonts.css')
-        
+
         try:
             shutil.copytree(fonts_dir, fonts_backup)
             shutil.copy2(fonts_css_path, fonts_css_backup)
-            
+
             # Remove assets directory
             shutil.rmtree(assets_path)
-            
+
             # Recreate assets directory structure
             os.makedirs(os.path.join(assets_path, 'fonts'), exist_ok=True)
             os.makedirs(os.path.join(assets_path, 'css'), exist_ok=True)
-            
+
             # Restore cached fonts
             shutil.copytree(fonts_backup, os.path.join(assets_path, 'fonts'), dirs_exist_ok=True)
             shutil.copy2(fonts_css_backup, os.path.join(assets_path, 'css', 'fonts.css'))
-            
+
         except (IOError, OSError, PermissionError) as e:
             self.logger.error(f"Failed to clean assets while preserving fonts: {e}")
         finally:
@@ -972,12 +1277,12 @@ body {{
             except:
                 pass  # Ignore cleanup errors
 
-    def create_output_dir(self):
+    def create_output_dir(self) -> None:
         """Create output directory, preserving non-Stattic files and cached fonts."""
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir, exist_ok=True)
             return
-        
+
         # Define files and directories that Stattic generates
         stattic_generated = {
             # Root files Stattic creates
@@ -987,7 +1292,7 @@ body {{
             # Legacy feed directory (if it exists)
             'feed'
         }
-        
+
         # Add page directories (these are generated from content/pages)
         pages_dir = os.path.join(self.content_dir, 'pages')
         if os.path.exists(pages_dir):
@@ -1006,18 +1311,18 @@ body {{
                     except Exception:
                         # If we can't read the page, use filename as fallback
                         stattic_generated.add(os.path.splitext(page_file)[0])
-        
+
         # Check if fonts need to be preserved
         fonts_dir = os.path.join(self.output_dir, 'assets', 'fonts')
         fonts_css_path = os.path.join(self.output_dir, 'assets', 'css', 'fonts.css')
         fonts_to_preserve = self.fonts and self._fonts_are_cached(fonts_css_path, fonts_dir)
-        
+
         preserved_items = []
-        
+
         # Remove only Stattic-generated files and directories
         for item in os.listdir(self.output_dir):
             item_path = os.path.join(self.output_dir, item)
-            
+
             if item in stattic_generated:
                 # Special handling for assets directory if fonts need to be preserved
                 if item == 'assets' and fonts_to_preserve:
@@ -1035,30 +1340,73 @@ body {{
                     preserved_items.append(item)
                 else:
                     preserved_items.append(item)
-        
+
         # Log what was preserved
         if preserved_items:
             self.logger.info(f"Preserved non-Stattic files: {', '.join(preserved_items)}")
-        
+
         # Set font cache flag if fonts were preserved
         if fonts_to_preserve:
             self._fonts_cached = True
 
-    def parse_date(self, date_str):
-        """Parse a date string."""
+    def parse_date(self, date_str: Union[str, datetime, date]) -> datetime:
+        """
+        Parse a date string with enhanced format support and error handling.
+        
+        Supports 16 different date formats with performance optimization.
+        Most common formats are checked first for better performance.
+        
+        Args:
+            date_str: String, datetime, or date object to parse
+            
+        Returns:
+            datetime: Parsed datetime object, or datetime.min if parsing fails
+        """
         if isinstance(date_str, datetime):
             return date_str
         elif isinstance(date_str, date):
             return datetime(date_str.year, date_str.month, date_str.day)
         elif isinstance(date_str, str):
-            for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%d', '%b %d, %Y']:
+            # Strip whitespace and normalize
+            date_str = date_str.strip()
+            if not date_str:
+                self.logger.warning("Empty date string provided, using minimum date")
+                return datetime.min
+
+            # Performance-optimized format list (most common first)
+            date_formats = [
+                '%Y-%m-%d',           # 2025-06-12 (most common)
+                '%Y-%m-%dT%H:%M:%S',  # 2025-06-12T14:30:00 (ISO format)
+                '%b %d, %Y',          # Jun 12, 2025 (short month)
+                '%B %d, %Y',          # June 12, 2025 (full month)
+                '%Y-%m-%d %H:%M:%S',  # 2025-06-12 14:30:00
+                '%m/%d/%Y',           # 06/12/2025 (US format)
+                '%d/%m/%Y',           # 12/06/2025 (EU format)
+                '%Y/%m/%d',           # 2025/06/12 (Asian format)
+                '%m-%d-%Y',           # 06-12-2025
+                '%d-%m-%Y',           # 12-06-2025
+                '%Y.%m.%d',           # 2025.06.12
+                '%d.%m.%Y',           # 12.06.2025
+                '%b %d %Y',           # Jun 12 2025 (no comma)
+                '%B %d %Y',           # June 12 2025 (no comma)
+                '%Y-%m-%dT%H:%M:%SZ', # 2025-06-12T14:30:00Z (UTC)
+                '%Y-%m-%dT%H:%M:%S.%f' # 2025-06-12T14:30:00.123456 (microseconds)
+            ]
+
+            for fmt in date_formats:
                 try:
                     return datetime.strptime(date_str, fmt)
                 except ValueError:
                     continue
-        return datetime.min
 
-    def get_markdown_files(self, directory):
+            # If all formats fail, log warning and return minimum date
+            self.logger.warning(f"Unable to parse date '{date_str}' with any supported format. Using minimum date as fallback.")
+            return datetime.min
+        else:
+            self.logger.warning(f"Invalid date type: {type(date_str)}. Expected string, date, or datetime.")
+            return datetime.min
+
+    def get_markdown_files(self, directory: str) -> List[str]:
         """Get all markdown files from a directory."""
         markdown_files = []
         if os.path.exists(directory):
@@ -1067,7 +1415,7 @@ body {{
                     markdown_files.append(os.path.join(directory, file))
         return markdown_files
 
-    def render_template(self, template_name, **context):
+    def render_template(self, template_name: str, **context: Any) -> Optional[str]:
         """Render a Jinja2 template."""
         try:
             template = self.env.get_template(template_name)
@@ -1078,17 +1426,17 @@ body {{
             self.logger.error(f"Template error: {e}")
             return None
 
-    def build_posts_and_pages(self):
+    def build_posts_and_pages(self) -> None:
         """Build all posts and pages using adaptive processing based on workload size."""
         posts_dir = os.path.join(self.content_dir, 'posts')
         pages_dir = os.path.join(self.content_dir, 'pages')
-        
+
         post_files = self.get_markdown_files(posts_dir)
         page_files = self.get_markdown_files(pages_dir)
-        
+
         # Prepare tasks for processing
         tasks = [(file, False) for file in post_files] + [(file, True) for file in page_files]
-        
+
         if not tasks:
             self.logger.warning("No markdown files found to process.")
             return
@@ -1103,7 +1451,7 @@ body {{
             self.logger.info(f"Using single-threaded processing for {total_files} files")
             self._build_single_threaded(tasks)
 
-    def _build_single_threaded(self, tasks):
+    def _build_single_threaded(self, tasks: List[Tuple[str, bool]]) -> None:
         """Build posts and pages using single-threaded processing for small workloads."""
         # Create a local FileProcessor instance for single-threaded processing
         session = requests.Session()
@@ -1118,7 +1466,7 @@ body {{
                 self.site_url, self.content_dir, self.blog_slug, 
                 session=session, safe_requestor=safe_requestor
             )
-            
+
             for file_path, is_page in tasks:
                 try:
                     result = processor.process(file_path, is_page)
@@ -1140,15 +1488,15 @@ body {{
             # Ensure session is properly closed to prevent resource leaks
             session.close()
 
-    def _build_with_multiprocessing(self, tasks):
+    def _build_with_multiprocessing(self, tasks: List[Tuple[str, bool]]) -> None:
         """Build posts and pages using multiprocessing for large workloads."""
         # Separate posts and pages for two-phase processing like original stattic.py
         post_files = [file_path for file_path, is_page in tasks if not is_page]
         page_files = [file_path for file_path, is_page in tasks if is_page]
-        
+
         # Use same worker calculation as original: all available CPU cores
         optimal_workers = os.cpu_count()
-        
+
         with ProcessPoolExecutor(
             max_workers=optimal_workers,
             initializer=initializer,
@@ -1156,7 +1504,7 @@ body {{
                      self.categories, self.tags, self.authors, self.pages, 
                      self.site_url, self.content_dir, self.blog_slug)
         ) as executor:
-            # Phase 1: Process all posts first (like original)
+            # Process all posts first (like original)
             if post_files:
                 post_futures = {executor.submit(process_file, pf, False): pf for pf in post_files}
                 for future in as_completed(post_futures):
@@ -1173,8 +1521,8 @@ body {{
                                 self.posts.append(post_meta)
                     except Exception as e:
                         self.logger.error(f"Error building post {pf}: {e}")
-            
-            # Phase 2: Process all pages second (like original)  
+
+            # Process all pages second (like original)  
             if page_files:
                 page_futures = {executor.submit(process_file, pg, True): pg for pg in page_files}
                 for future in as_completed(page_futures):
@@ -1187,7 +1535,7 @@ body {{
                     except Exception as e:
                         self.logger.error(f"Error building page {pg}: {e}")
 
-    def build_blog_page(self):
+    def build_blog_page(self) -> bool:
         """Build the main blog page (single archive page, not paginated)."""
         blog_page_output = os.path.join(self.output_dir, self.blog_slug)
         os.makedirs(blog_page_output, exist_ok=True)
@@ -1264,7 +1612,7 @@ body {{
 
         return True
 
-    def calculate_relative_path(self, current_output_dir):
+    def calculate_relative_path(self, current_output_dir: str) -> str:
         """Calculate relative path from current directory to root."""
         rel_path = os.path.relpath(self.output_dir, current_output_dir)
         # Ensure relative path ends with '/' for proper asset linking
@@ -1273,7 +1621,7 @@ body {{
         else:
             return rel_path + '/'
 
-    def get_pagination_links(self, current_page, total_pages):
+    def get_pagination_links(self, current_page: int, total_pages: int) -> Dict[str, Any]:
         """Generate pagination links."""
         pagination = {
             'current': current_page,
@@ -1298,7 +1646,7 @@ body {{
 
         return pagination
 
-    def get_pagination_links(self, current_page, total_pages):
+    def get_pagination_links(self, current_page: int, total_pages: int) -> List[Union[int, str]]:
         """
         Returns a list of page numbers (or ellipses) to display in pagination.
         Always shows page 1 and total_pages.
@@ -1332,7 +1680,7 @@ body {{
 
         return links
 
-    def build_index_page(self):
+    def build_index_page(self) -> None:
         """
         Build paginated index pages with numbered pagination that shows ellipses.
         - index.html for page 1
@@ -1341,7 +1689,7 @@ body {{
         if not self.posts:
             self.logger.info("No posts found for index page generation")
             return
-            
+
         # Parse dates for sorting
         for post in self.posts:
             post['parsed_date'] = self.parse_date(post.get('date', ''))
@@ -1416,7 +1764,7 @@ body {{
 
         self.logger.info("Building index page")
 
-    def generate_rss_feed(self, site_url, site_name=None):
+    def generate_rss_feed(self, site_url: str, site_name: Optional[str] = None) -> bool:
         """Generate RSS feed."""
         if not site_name:
             site_name = site_title_from_url(site_url)
@@ -1441,21 +1789,21 @@ body {{
             title = escape(post.get('title', 'Untitled'))
             # Use permalink that's already computed
             link = f"{site_url.rstrip('/')}/{post.get('permalink', '')}"
-            
+
             # Use excerpt if available, otherwise truncate content
             if 'excerpt' in post:
                 raw_description = post['excerpt']
             else:
                 # Use metadata if available for excerpt generation
                 raw_description = post.get('metadata', {}).get('excerpt', post.get('title', 'No excerpt available'))
-            
+
             # Clean and escape the description for XML
             import html as html_module
             clean_description = html_module.unescape(str(raw_description))
             clean_description = re.sub(r'<.*?>', '', clean_description)  # Remove any HTML tags
             clean_description = re.sub(r'\s+', ' ', clean_description)  # Normalize whitespace
             description = escape(clean_description.strip())
-            
+
             post_date = self.parse_date(post.get('date', ''))
             pub_date = formatdate(post_date.timestamp()) if post_date != datetime.min else formatdate()
 
@@ -1486,7 +1834,7 @@ body {{
 
         return True
 
-    def generate_xml_sitemap(self, site_url):
+    def generate_xml_sitemap(self, site_url: str) -> bool:
         """Generate XML sitemap."""
         # Start sitemap
         sitemap_content = '''<?xml version="1.0" encoding="UTF-8"?>
@@ -1503,7 +1851,9 @@ body {{
         # Add posts using already-processed data
         for post in self.posts:
             post_url = f"{site_url.rstrip('/')}/{post.get('permalink', '')}"
-            post_date = self.parse_date(post.get('date', ''))
+            # Use raw_date if available, otherwise fall back to metadata date or formatted date
+            raw_date = post.get('raw_date') or post.get('metadata', {}).get('date') or post.get('date', '')
+            post_date = self.parse_date(raw_date)
             sitemap_content += self.format_xml_sitemap_entry(post_url, post_date)
 
         # Add pages using already-loaded data
@@ -1526,7 +1876,7 @@ body {{
 
         return True
 
-    def format_xml_sitemap_entry(self, url, lastmod):
+    def format_xml_sitemap_entry(self, url: str, lastmod: datetime) -> str:
         """Format a single sitemap entry."""
         return f'''<url>
 <loc>{escape(url)}</loc>
@@ -1534,7 +1884,7 @@ body {{
 </url>
 '''
 
-    def generate_robots_txt(self, mode="public"):
+    def generate_robots_txt(self, mode: str = "public") -> bool:
         """Generate robots.txt file."""
         if mode == "public":
             robots_content = """User-agent: *
@@ -1556,60 +1906,59 @@ Disallow: /"""
 
         return True
 
-    def generate_llms_txt(self, site_title=None, site_tagline=None):
+    def generate_llms_txt(self, site_title: Optional[str] = None, site_tagline: Optional[str] = None) -> bool:
         """Generate llms.txt file for LLM crawlers."""
         if not site_title and self.site_url:
             site_title = site_title_from_url(self.site_url)
-        
+
         # Create descriptive title
         if site_title:
             title_line = f"# {site_title} - a Python-based static site generator's demo website"
         else:
             title_line = "# Stattic - a Python-based static site generator's demo website"
-        
+
         llms_content = f"""{title_line}
 
 This site contains structured content formatted for LLM-friendly consumption.
 
 """
-        
+
         # Add blog posts content using already-processed data
         if self.posts:
             llms_content += "## Posts\n"
-            
+
             # Sort posts by date
             sorted_posts = sorted(self.posts, key=lambda x: self.parse_date(x.get('date', '')), reverse=True)
-            
+
             # Add each post
             for post in sorted_posts:
                 title = post.get('title', 'Untitled')
                 permalink = post.get('permalink', '')
                 url = f"{self.site_url}/{permalink}"
-                
+
                 # Generate unique ID for the post
                 content_hash = abs(hash(title + permalink)) % (10**10)
-                
+
                 llms_content += f"- [{title}]({url}): ID {content_hash}\n"
-            
-            llms_content += "\n"
-                    
-        
+
+            llms_content += "\n"  
+
         # Add pages content using already-loaded data
         if self.pages:
             llms_content += "## Pages\n"
-            
+
             for page in self.pages:
                 title = page.get('title', 'Untitled')
                 permalink = page.get('permalink', '/')
                 url = f"{self.site_url}{permalink}"
-                
+
                 # Generate unique ID for the page
                 content_hash = abs(hash(title + permalink)) % (10**10)
-                
+
                 llms_content += f"- [{title}]({url}): ID {content_hash}\n"
-            
+
             llms_content += "\n"
-        
+
         # Add sitemap reference
         llms_content += f"""## Sitemap
 {self.site_url}/sitemap.xml
@@ -1626,7 +1975,7 @@ This site contains structured content formatted for LLM-friendly consumption.
 
         return True
 
-    def build_404_page(self):
+    def build_404_page(self) -> None:
         """Build 404 error page."""
         html = self.render_template(
             '404.html',
@@ -1648,31 +1997,31 @@ This site contains structured content formatted for LLM-friendly consumption.
 
         self.logger.info("Building 404 page")
 
-    def build(self):
+    def build(self) -> None:
         """Main build process."""
         self.logger.info("Starting site build...")
-        
+
         # Copy assets (with font preservation logic built-in)
         self.copy_assets_to_output()
-        
+
         # Download fonts (will skip if cached)
         self.download_google_fonts()
-        
+
         # Build posts and pages
         self.build_posts_and_pages()
-        
+
         # Build blog and index pages
         self.build_blog_page()
         self.build_index_page()
-        
+
         # Build 404 page
         self.build_404_page()
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup method to close session when Stattic instance is destroyed."""
         self.cleanup()
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Cleanup resources (close session, etc.)."""
         try:
             if hasattr(self, 'session') and self.session:
