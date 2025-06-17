@@ -515,7 +515,7 @@ class FileProcessor:
             if not url.startswith('http') and not url.startswith('//'):
                 if markdown_file_path:
                     markdown_dir = os.path.dirname(markdown_file_path)
-                    # Security fix: Validate relative path to prevent directory traversal
+                    # Validate relative path to prevent directory traversal
                     if '..' in url or url.startswith('/'):
                         self.logger.warning(f"Skipping potentially unsafe image path: {url}")
                         continue
@@ -535,7 +535,7 @@ class FileProcessor:
                 webp_path = self.convert_image_to_webp(image_path)
                 if webp_path:
                     images_converted += 1
-                    # Security fix: Sanitize webp filename to prevent path traversal
+                    # Sanitize webp filename to prevent path traversal
                     webp_name = os.path.basename(webp_path)
                     webp_name = os.path.basename(os.path.normpath(webp_name))
                     if '..' in webp_name or '/' in webp_name or '\\' in webp_name:

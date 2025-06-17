@@ -14,10 +14,10 @@ class URLValidator:
     """
     Comprehensive URL validator to prevent SSRF attacks and validate URL safety.
     """
-    
+
     # Allowed URL schemes
     ALLOWED_SCHEMES: Set[str] = {'http', 'https'}
-    
+
     # Private/Reserved IP ranges to block (RFC 1918, RFC 3927, RFC 6598, etc.)
     BLOCKED_IP_RANGES: List[str] = [
         '0.0.0.0/8',          # "This network"
@@ -44,7 +44,7 @@ class URLValidator:
         'fc00::/7',           # IPv6 unique local
         'ff00::/8',           # IPv6 multicast
     ]
-    
+
     # Blocked hostnames/domains
     BLOCKED_HOSTNAMES: Set[str] = {
         'localhost',
@@ -58,13 +58,13 @@ class URLValidator:
         'metadata.google.internal',  # GCP metadata service
         '169.254.169.254',           # AWS/Azure metadata service
     }
-    
+
     # Allowed domains for specific services (Google Fonts, etc.)
     ALLOWED_DOMAINS: Set[str] = {
         'fonts.googleapis.com',
         'fonts.gstatic.com',
     }
-    
+
     def __init__(self, max_redirects: int = 5, timeout: int = 10):
         """
         Initialize URL validator.
@@ -76,7 +76,7 @@ class URLValidator:
         self.max_redirects = max_redirects
         self.timeout = timeout
         self._blocked_networks = [ipaddress.ip_network(cidr) for cidr in self.BLOCKED_IP_RANGES]
-    
+
     def validate_url(self, url: str, allowed_domains: Set[str] = None) -> Tuple[bool, str]:
         """
         Validate a URL for SSRF safety.
@@ -93,20 +93,20 @@ class URLValidator:
             parsed = urlparse(url)
             if not parsed.scheme or not parsed.netloc:
                 return False, "Invalid URL format"
-            
+
             # Check URL scheme
             if parsed.scheme.lower() not in self.ALLOWED_SCHEMES:
                 return False, f"Unsupported URL scheme: {parsed.scheme}"
-            
+
             # Extract hostname
             hostname = parsed.hostname
             if not hostname:
                 return False, "Invalid hostname in URL"
-            
+
             # Check against blocked hostnames
             if hostname.lower() in self.BLOCKED_HOSTNAMES:
                 return False, f"Blocked hostname: {hostname}"
-            
+
             # Check domain whitelist if provided
             if allowed_domains:
                 domain_allowed = any(
@@ -116,7 +116,7 @@ class URLValidator:
                 )
                 if not domain_allowed:
                     return False, f"Domain not in allowlist: {hostname}"
-            
+
             # Resolve hostname to IP and validate
             try:
                 ip_addresses = self._resolve_hostname(hostname)
@@ -127,16 +127,16 @@ class URLValidator:
                 return False, f"Cannot resolve hostname: {hostname}"
             except Exception as e:
                 return False, f"DNS resolution error: {str(e)}"
-            
+
             # Additional URL pattern checks
             if not self._check_url_patterns(url):
                 return False, "URL contains suspicious patterns"
-            
+
             return True, "URL is valid"
-            
+
         except Exception as e:
             return False, f"URL validation error: {str(e)}"
-    
+
     def validate_google_fonts_url(self, url: str) -> Tuple[bool, str]:
         """
         Specifically validate Google Fonts URLs.
@@ -154,9 +154,9 @@ class URLValidator:
         elif 'fonts.gstatic.com' in url:
             if not re.match(r'https://fonts\.gstatic\.com/', url):
                 return False, "Invalid Google Fonts static URL format"
-        
+
         return self.validate_url(url, self.ALLOWED_DOMAINS)
-    
+
     def _resolve_hostname(self, hostname: str) -> List[str]:
         """
         Resolve hostname to IP addresses.
@@ -179,10 +179,10 @@ class URLValidator:
             # Extract unique IP addresses
             ip_addresses = list(set(info[4][0] for info in addr_info))
             return ip_addresses
-            
+
         except socket.gaierror as e:
             raise e
-    
+
     def _is_ip_allowed(self, ip_str: str) -> bool:
         """
         Check if an IP address is allowed (not in blocked ranges).
@@ -195,17 +195,17 @@ class URLValidator:
         """
         try:
             ip = ipaddress.ip_address(ip_str)
-            
+
             # Check against blocked networks
             for network in self._blocked_networks:
                 if ip in network:
                     return False
-            
+
             return True
-            
+
         except ipaddress.AddressValueError:
             return False
-    
+
     def _check_url_patterns(self, url: str) -> bool:
         """
         Check URL for suspicious patterns.
@@ -228,17 +228,17 @@ class URLValidator:
             r'data://',          # Data scheme
             r'javascript:',      # JavaScript scheme
         ]
-        
+
         url_lower = url.lower()
         for pattern in suspicious_patterns:
             if re.search(pattern, url_lower):
                 return False
-        
+
         # Check for @ in netloc (user info) but allow it in query parameters
         parsed = urlparse(url)
         if parsed.netloc and '@' in parsed.netloc:
             return False
-        
+
         return True
 
 class SafeRequestor:

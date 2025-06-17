@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Command-line interface for Stattic static site generator.
+Command-line interface for Stattic - static site generator.
 """
 
 import os
@@ -12,7 +12,6 @@ import pkg_resources
 from typing import List, Optional
 from .core import Stattic
 from .settings import StatticSettings
-
 
 def create_starter_structure() -> None:
     """Create complete starter structure with templates, content, and assets."""
@@ -30,8 +29,11 @@ def create_starter_structure() -> None:
     
     for directory in directories:
         dir_path = os.path.join(current_dir, directory)
-        os.makedirs(dir_path, exist_ok=True)
-        print(f"Created directory: {directory}")
+        if os.path.exists(dir_path):
+            print(f"Directory already exists: {directory}")
+        else:
+            os.makedirs(dir_path, exist_ok=True)
+            print(f"Created directory: {directory}")
     
     # Copy template files from package
     try:
@@ -43,8 +45,12 @@ def create_starter_structure() -> None:
             if template_file.endswith('.html'):
                 src_path = os.path.join(template_source, template_file)
                 dest_path = os.path.join(template_dest, template_file)
-                shutil.copy2(src_path, dest_path)
-                print(f"Created template: templates/{template_file}")
+                
+                if os.path.exists(dest_path):
+                    print(f"Template already exists: templates/{template_file}")
+                else:
+                    shutil.copy2(src_path, dest_path)
+                    print(f"Created template: templates/{template_file}")
     except Exception as e:
         print(f"Warning: Could not copy templates from package: {e}")
         print("You can copy templates manually from the Stattic repository.")
@@ -187,14 +193,20 @@ Learn more about Stattic at [stattic.site](https://stattic.site).
     
     # Write sample files
     post_path = os.path.join(current_dir, 'content', 'posts', 'sample-post.md')
-    with open(post_path, 'w', encoding='utf-8') as f:
-        f.write(sample_post)
-    print("Created sample post: content/posts/sample-post.md")
+    if os.path.exists(post_path):
+        print("Sample post already exists: content/posts/sample-post.md")
+    else:
+        with open(post_path, 'w', encoding='utf-8') as f:
+            f.write(sample_post)
+        print("Created sample post: content/posts/sample-post.md")
     
     page_path = os.path.join(current_dir, 'content', 'pages', 'sample-page.md')
-    with open(page_path, 'w', encoding='utf-8') as f:
-        f.write(sample_page)
-    print("Created sample page: content/pages/sample-page.md")
+    if os.path.exists(page_path):
+        print("Sample page already exists: content/pages/sample-page.md")
+    else:
+        with open(page_path, 'w', encoding='utf-8') as f:
+            f.write(sample_page)
+        print("Created sample page: content/pages/sample-page.md")
 
 
 def create_sample_yaml_files() -> None:
@@ -232,22 +244,31 @@ def create_sample_yaml_files() -> None:
   description: "Posts about getting started with new topics"
   slug: "getting-started"
 """
-    
+
     # Write YAML files
     authors_path = os.path.join(current_dir, 'content', 'authors.yml')
-    with open(authors_path, 'w', encoding='utf-8') as f:
-        f.write(authors_content)
-    print("Created sample authors: content/authors.yml")
-    
+    if os.path.exists(authors_path):
+        print("Authors file already exists: content/authors.yml")
+    else:
+        with open(authors_path, 'w', encoding='utf-8') as f:
+            f.write(authors_content)
+        print("Created sample authors: content/authors.yml")
+
     categories_path = os.path.join(current_dir, 'content', 'categories.yml')
-    with open(categories_path, 'w', encoding='utf-8') as f:
-        f.write(categories_content)
-    print("Created sample categories: content/categories.yml")
-    
+    if os.path.exists(categories_path):
+        print("Categories file already exists: content/categories.yml")
+    else:
+        with open(categories_path, 'w', encoding='utf-8') as f:
+            f.write(categories_content)
+        print("Created sample categories: content/categories.yml")
+
     tags_path = os.path.join(current_dir, 'content', 'tags.yml')
-    with open(tags_path, 'w', encoding='utf-8') as f:
-        f.write(tags_content)
-    print("Created sample tags: content/tags.yml")
+    if os.path.exists(tags_path):
+        print("Tags file already exists: content/tags.yml")
+    else:
+        with open(tags_path, 'w', encoding='utf-8') as f:
+            f.write(tags_content)
+        print("Created sample tags: content/tags.yml")
 
 def main() -> None:
     """Main CLI entry point."""
@@ -272,10 +293,12 @@ def main() -> None:
                         help='Site URL for RSS feeds and sitemaps')
     parser.add_argument('--robots', type=str, choices=['public', 'private'], 
                         help='Robots.txt configuration')
+    parser.add_argument('--llms', type=str, choices=['public', 'private'], 
+                        help='LLMs.txt configuration for AI crawlers')
     parser.add_argument('--watch', action='store_true',
                         help='Watch for file changes and rebuild (not implemented)')
     parser.add_argument('--minify', action='store_true',
-                        help='Minify CSS and JS assets (not implemented)')
+                        help='Minify CSS and JS assets')
     parser.add_argument('--blog-slug', type=str,
                         help="Custom slug for posts instead of 'blog'")
     parser.add_argument('--init', type=str, choices=['yml', 'yaml', 'json'], 
@@ -294,7 +317,7 @@ def main() -> None:
         print("\nCreating starter project structure...")
         create_starter_structure()
 
-        print("\n🎉 Your new Stattic site is ready!")
+        print("\nYour new Stattic site is ready!")
         print("Edit the configuration file and templates, then run 'stattic' to build your site.")
         return
 
@@ -347,7 +370,8 @@ def main() -> None:
 
         # Generate robots.txt and llms.txt
         generator.generate_robots_txt(final_settings['robots'])
-        generator.generate_llms_txt(final_settings['site_title'], final_settings['site_tagline'])
+        if final_settings['llms'] == 'public':
+            generator.generate_llms_txt(final_settings['site_title'], final_settings['site_tagline'])
 
         # Show build statistics
         overall_end_time = time.time()

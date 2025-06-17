@@ -10,6 +10,7 @@ stattic.egg-info/PKG-INFO
 stattic.egg-info/SOURCES.txt
 stattic.egg-info/dependency_links.txt
 stattic.egg-info/entry_points.txt
+stattic.egg-info/requires.txt
 stattic.egg-info/top_level.txt
 stattic_pkg/__init__.py
 stattic_pkg/cli.py

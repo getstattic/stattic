@@ -1,20 +1,18 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: stattic
 Version: 1.0.0
 Summary: A simple yet powerful static site generator written in Python
 Home-page: https://github.com/getstattic/stattic
 Author: Robert DeVore
 Author-email: Robert DeVore <me@robertdevore.com>
-License: MIT
+License-Expression: MIT
 Project-URL: Homepage, https://github.com/getstattic/stattic
 Project-URL: Bug Reports, https://github.com/getstattic/stattic/issues
 Project-URL: Source, https://github.com/getstattic/stattic
 Project-URL: Documentation, https://docs.stattic.site
 Keywords: static site generator,markdown,jinja2,blog,website
-Platform: UNKNOWN
 Classifier: Development Status :: 4 - Beta
 Classifier: Intended Audience :: Developers
-Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3.8
@@ -28,6 +26,20 @@ Classifier: Topic :: Text Processing :: Markup :: HTML
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: markdown==3.4.1
+Requires-Dist: Jinja2>=3.1.6
+Requires-Dist: pyyaml==6.0
+Requires-Dist: watchdog==2.1.9
+Requires-Dist: requests==2.32.4
+Requires-Dist: Pillow==10.3.0
+Requires-Dist: tqdm==4.66.3
+Requires-Dist: csscompressor==0.9.5
+Requires-Dist: rjsmin==1.2.0
+Requires-Dist: mistune==2.0.3
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
 
 # Stattic - Decentralized Publishing
 
@@ -46,6 +58,7 @@ License-File: LICENSE
 - **Google Fonts Integration**: Download specified Google Fonts and generate corresponding CSS.
 - **Asset Management**: Copy and manage CSS, JS, and font assets, with optional minification.
 - **RSS Feed and XML Sitemap**: Generate RSS feeds and sitemaps for your site when a site URL is provided.
+- **LLMs.txt for AI Crawlers**: Generate structured content files for AI and LLM crawlers to better understand your site.
 - **404 Page Generation**: Create a custom `404.html` page for error handling.
 - **Logging**: Detailed logs of the build process, including performance metrics and errors.
 - **Error Handling**: Gracefully manage template syntax errors, missing files, and download failures.
@@ -60,9 +73,10 @@ License-File: LICENSE
 6. [Image Optimization](#image-optimization)
 7. [Asset Minification](#asset-minification)
 8. [RSS Feed and Sitemap](#rss-feed-and-sitemap)
-9. [Logging](#logging)
-10. [Contributing](#contributing)
-11. [License](#license)
+9. [LLMs.txt for AI Crawlers](#llmstxt-for-ai-crawlers)
+10. [Logging](#logging)
+11. [Contributing](#contributing)
+12. [License](#license)
 
 ---
 
@@ -115,23 +129,27 @@ After installation, you can use the `stattic` command from anywhere in your term
 - `mistune`: Markdown parser with custom rendering.
 - `watchdog`: (Optional) Monitors file changes in watch mode.
 
-**System binaries**
-
-- `gif2webp`: Part of the **libwebp** tools (`brew install webp` or `apt-get install webp`);
-              used to convert animated GIFs to animated WebP quickly.
 ---
 
 ## Usage
 
 ### **Configuration File (Recommended)**
 
-Stattic supports configuration files to avoid typing command-line arguments repeatedly. Create a configuration file in your project directory:
+Stattic supports configuration files to avoid typing command-line arguments repeatedly. Create a configuration file and complete starter project structure in your project directory:
 
 ```bash
 stattic --init yml
 ```
 
-This creates a `stattic.yml` file with all available settings:
+This creates a `stattic.yml` file with all available settings and sets up your entire project structure including:
+
+- **Configuration file**: `stattic.yml` (or `.yaml`/`.json` based on your choice)
+- **Directory structure**: `templates/`, `content/posts/`, `content/pages/`, `assets/css/`, `assets/js/`, `assets/images/`
+- **Template files**: All default HTML templates (`base.html`, `post.html`, `index.html`, etc.)
+- **Sample content**: `sample-post.md` and `sample-page.md` to get you started
+- **Configuration files**: `authors.yml`, `categories.yml`, `tags.yml` with sample data
+
+The generated `stattic.yml` contains all available settings:
 
 ```yaml
 # Stattic Configuration File
@@ -159,6 +177,7 @@ fonts:
 
 # SEO settings
 robots: public  # public or private
+llms: public    # public or private
 
 # Development settings
 minify: true
@@ -204,9 +223,9 @@ This command processes the content in the `content/` directory, applies the temp
     stattic --templates ~/Documents/demo-templates
     ```
 
-- `--robots`: Specify if the robots.txt file is public or private. Default is `public`.
+- `--assets`: Specify the assets directory. Default is `assets`.
     ```bash
-    stattic --robots public
+    stattic --assets ~/Documents/demo-assets
     ```
 
 - `--posts-per-page`: Number of posts per index (homepage) page. Default is `5`.
@@ -224,10 +243,47 @@ This command processes the content in the `content/` directory, applies the temp
     stattic --fonts "Quicksand, Roboto"
     ```
 
+- `--site-title`: Specify the site title for production builds.
+    ```bash
+    stattic --site-title "Demo title goes here"
+    ```
+
+- `--site-tagline`: Specify the site tagline for production builds.
+    ```bash
+    stattic --site-tagline "Demo tagline goes here"
+    ```
+
 - `--site-url`: Specify the site URL for production builds. Enables RSS feed and sitemap generation.
     ```bash
     stattic --site-url "https://demo.stattic.site"
     ```
+
+- `--robots`: Specify if the robots.txt file is public or private. Default is `public`.
+    ```bash
+    stattic --robots public
+    ```
+
+- `--llms`: Specify if the llms.txt file is public or private. Default is `public`.
+    ```bash
+    stattic --llms public
+    ```
+
+- `--init`: Create a sample configuration file and starter project structure. Choose from `yml`, `yaml`, or `json`.
+    ```bash
+    stattic --init yml
+    ```
+    This command creates:
+    - Sample configuration file (`stattic.yml`, `stattic.yaml`, or `stattic.json`)
+    - Complete directory structure (`templates/`, `content/`, `assets/`)
+    - Default template files
+    - Sample content files (`sample-post.md`, `sample-page.md`)
+    - Sample YAML configuration files (`authors.yml`, `categories.yml`, `tags.yml`)
+
+- `--watch`: _(Not Implemented)_ Enable watch mode to automatically rebuild on file changes.
+    
+    ```bash
+    stattic --watch
+    ```    
 
 - `--minify`: Minify CSS and JS into single files.
     
@@ -235,11 +291,10 @@ This command processes the content in the `content/` directory, applies the temp
     stattic --minify
     ```    
 
-- `--watch`: _(Not Implemented)_ Enable watch mode to automatically rebuild on file changes.
-    
+- `--blog-slug`: Custom slug for posts instead of 'blog'. Default is `blog`.
     ```bash
-    stattic --watch
-    ```    
+    stattic --blog-slug "articles"
+    ```
 
 - `--version`: Show the version number.
     
@@ -418,6 +473,48 @@ Generate an RSS feed and XML sitemap for your site by providing the `--site-url`
 **Note:** RSS and sitemap generation are only enabled when a valid `--site-url` is provided.
 * * *
 
+## LLMs.txt for AI Crawlers
+
+Generate an `llms.txt` file that provides structured content for AI crawlers and Large Language Models (LLMs). This file helps AI systems understand and index your site's content more effectively.
+
+- **Generate LLMs.txt**:
+    ```bash
+    stattic --site-url "https://demo.stattic.site" --llms public
+    ```
+
+- **Disable LLMs.txt Generation**:
+    ```bash
+    stattic --llms private
+    ```
+
+- **Generated File**:
+    - `output/llms.txt`: Structured content listing with posts, pages, and site information formatted for LLM consumption.
+
+**File Content Includes:**
+- Site title and description
+- List of all blog posts with titles, URLs, and unique IDs
+- List of all pages with titles, URLs, and unique IDs  
+- Sitemap reference for comprehensive site structure
+
+**Example `llms.txt` Content:**
+```
+# My Static Site - a Python-based static site generator's demo website
+
+This site contains structured content formatted for LLM-friendly consumption.
+
+## Posts
+- [Welcome to Your New Static Site](https://demo.stattic.site/blog/sample-post/): ID 3851798142
+
+## Pages
+- [About This Site](https://demo.stattic.site/sample-page/): ID 4646506025
+
+## Sitemap
+https://demo.stattic.site/sitemap.xml
+```
+
+**Note:** LLMs.txt generation is enabled by default (`--llms public`) when a valid `--site-url` is provided. Use `--llms private` to disable it for development or private sites.
+* * *
+
 ## Logging
 
 Stattic provides detailed logs of the build process, including performance metrics and errors.
@@ -446,7 +543,7 @@ We welcome contributions! To contribute:
 1. **Fork the Repository:**
 
 ```
-git clone https://github.com/getstattic/stattic.git
+git clone git@github.com:getstattic/stattic.git
 cd stattic
 ```
 
@@ -477,20 +574,3 @@ git push origin feature-branch
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](/LICENSE) file for details.
-
-* * *
-
-## Additional Notes (01/06/2025)
-
-1. **Watch Mode Implementation:**
-
-    - Currently, the `--watch` flag is defined but not implemented. Future updates will include automatic rebuilding when content or templates change.
-2. **Directory Structure Consistency:**
-
-    - Maintain a consistent directory structure to ensure relative paths are correctly calculated and assets are properly linked.
-3. **Error Handling:**
-
-    - Review the logs in the `logs/` directory if you encounter any issues during the build process.
-4. **Extending Features:**
-
-    - Consider adding features like search functionality, custom taxonomies, or integration with third-party services as needed.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Settings loader for Stattic static site generator.
+Settings loader for Stattic - static site generator.
 Supports configuration from stattic.yml, stattic.yaml, or stattic.json files.
 """
 
@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 
 class StatticSettings:
     """Load and manage Stattic configuration settings."""
-    
+
     # Default configuration
     DEFAULT_SETTINGS = {
         'output': 'output',
@@ -26,34 +26,35 @@ class StatticSettings:
         'site_tagline': None,
         'site_url': None,
         'robots': 'public',
+        'llms': 'public',
         'watch': False,
         'minify': False,
         'blog_slug': 'blog'
     }
-    
+
     # Config file names to look for (in order of preference)
     CONFIG_FILES = ['stattic.yml', 'stattic.yaml', 'stattic.json']
-    
+
     def __init__(self, config_dir: str = None):
         """
         Initialize settings loader.
-        
+
         Args:
             config_dir: Directory to look for config files. Defaults to current directory.
         """
         self.config_dir = config_dir or os.getcwd()
         self.settings = self.DEFAULT_SETTINGS.copy()
         self.config_file_path = None
-        
+
     def load_settings(self) -> Dict[str, Any]:
         """
         Load settings from configuration file if it exists.
-        
+
         Returns:
             Dictionary of configuration settings
         """
         config_file = self._find_config_file()
-        
+
         if config_file:
             self.config_file_path = config_file
             try:
@@ -66,11 +67,11 @@ class StatticSettings:
                 print(f"Warning: Failed to load config file {config_file}: {e}")
         
         return self.settings.copy()
-    
+
     def _find_config_file(self) -> Optional[str]:
         """
         Find the first available configuration file.
-        
+
         Returns:
             Path to config file or None if not found
         """
@@ -79,7 +80,7 @@ class StatticSettings:
             if os.path.exists(config_path):
                 return config_path
         return None
-    
+
     def _load_config_file(self, config_path: str) -> Dict[str, Any]:
         """
         Load configuration from a file.
@@ -92,7 +93,7 @@ class StatticSettings:
         """
         try:
             file_ext = os.path.splitext(config_path)[1].lower()
-            
+
             with open(config_path, 'r', encoding='utf-8') as f:
                 if file_ext in ['.yml', '.yaml']:
                     return yaml.safe_load(f) or {}
@@ -152,15 +153,15 @@ class StatticSettings:
             'minify': False,
             'watch': False
         }
-        
+
         # Remove comment-only entries for JSON
         if file_format == 'json':
             sample_config = {k: v for k, v in sample_config.items() 
                            if not (k.startswith('#') or k == '')}
-        
+
         filename = f'stattic.{file_format}'
         config_path = os.path.join(self.config_dir, filename)
-        
+
         try:
             with open(config_path, 'w', encoding='utf-8') as f:
                 if file_format in ['yml', 'yaml']:
@@ -197,9 +198,9 @@ class StatticSettings:
             raise IOError(f"Error writing configuration file {config_path}: {e}")
         except Exception as e:
             raise Exception(f"Unexpected error creating configuration file {config_path}: {e}")
-        
+
         return config_path
-    
+
     def merge_with_args(self, args_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Merge configuration settings with command-line arguments.
@@ -212,7 +213,7 @@ class StatticSettings:
             Merged configuration dictionary
         """
         merged = self.settings.copy()
-        
+
         # Override with non-None command line arguments
         for key, value in args_dict.items():
             if value is not None:
@@ -222,5 +223,5 @@ class StatticSettings:
                     merged[key] = [font.strip() for font in value.split(',')]
                 else:
                     merged[key] = value
-        
+
         return merged
