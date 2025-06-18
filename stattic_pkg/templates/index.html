@@ -6,7 +6,7 @@
     <ul class="space-y-6 stattic-content">
         {% for post in posts %}
         <li>
-            <h2 class="text-4xl mb-2 font-bold quicksand-700">
+            <h2 class="text-4xl mb-2 font-bold font-heading-bold">
                 <a href="{{ relative_path }}{{ post.permalink }}" class="text-links hover:underline">{{ post.title }}</a>
             </h2>
             <div class="dark:text-slate-50 mb-2">{{ post.excerpt | safe }}</div>

@@ -6,7 +6,7 @@
         {% if page.featured_image %}
             <img src="/{{ page.featured_image }}" alt="Featured Image for {{ page.title }}" class="featured-image" />
         {% endif %}
-        <h1 class="text-6xl font-bold mb-4 text-links quicksand-700 post-title">{{ title }}</h1>
+        <h1 class="text-6xl font-bold mb-4 text-links font-heading-bold post-title">{{ title }}</h1>
         <p class="text-2md post-meta mb-4 pb-2 text-accent italic border-b border-primary"><span class="date">{{ date }}</span> &middot; <span class="author">{{ get_author_name(author) }}</span></p>
         {{ content | safe }}
     </article>

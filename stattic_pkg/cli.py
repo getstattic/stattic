@@ -55,6 +55,44 @@ def create_starter_structure() -> None:
         print(f"Warning: Could not copy templates from package: {e}")
         print("You can copy templates manually from the Stattic repository.")
     
+    # Copy asset files from package
+    try:
+        # Copy CSS assets
+        css_source = pkg_resources.resource_filename('stattic_pkg', '../assets/css')
+        css_dest = os.path.join(current_dir, 'assets', 'css')
+        
+        if os.path.exists(css_source):
+            for asset_file in os.listdir(css_source):
+                if asset_file.endswith(('.css', '.min.css')):
+                    src_path = os.path.join(css_source, asset_file)
+                    dest_path = os.path.join(css_dest, asset_file)
+                    
+                    if os.path.exists(dest_path):
+                        print(f"CSS asset already exists: assets/css/{asset_file}")
+                    else:
+                        shutil.copy2(src_path, dest_path)
+                        print(f"Created CSS asset: assets/css/{asset_file}")
+        
+        # Copy JS assets
+        js_source = pkg_resources.resource_filename('stattic_pkg', '../assets/js')
+        js_dest = os.path.join(current_dir, 'assets', 'js')
+        
+        if os.path.exists(js_source):
+            for asset_file in os.listdir(js_source):
+                if asset_file.endswith(('.js', '.min.js')):
+                    src_path = os.path.join(js_source, asset_file)
+                    dest_path = os.path.join(js_dest, asset_file)
+                    
+                    if os.path.exists(dest_path):
+                        print(f"JS asset already exists: assets/js/{asset_file}")
+                    else:
+                        shutil.copy2(src_path, dest_path)
+                        print(f"Created JS asset: assets/js/{asset_file}")
+                        
+    except Exception as e:
+        print(f"Warning: Could not copy assets from package: {e}")
+        print("You can copy assets manually from the Stattic repository.")
+    
     # Create sample content files
     create_sample_content()
     

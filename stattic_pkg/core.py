@@ -682,11 +682,24 @@ class FileProcessor:
 
     def generate_excerpt(self, content):
         """Generate an excerpt from content."""
-        plain_text = re.sub(r'<[^>]+>', '', content)
+        # First, convert markdown to HTML to extract plain text properly
+        html_content = self.markdown_filter(content)
+        
+        # Strip HTML tags to get plain text
+        plain_text = re.sub(r'<[^>]+>', '', html_content)
+        
+        # Clean up extra whitespace
+        plain_text = ' '.join(plain_text.split())
+        
+        # Extract first 30 words
         words = plain_text.split()
         if len(words) > 30:
-            return ' '.join(words[:30]) + '...'
-        return plain_text
+            excerpt_text = ' '.join(words[:30]) + '...'
+        else:
+            excerpt_text = plain_text
+        
+        # Return as plain text wrapped in paragraph tags
+        return f"<p>{excerpt_text}</p>"
 
     def process(self, file_path, is_page):
         """Process a single markdown file."""
@@ -700,7 +713,7 @@ class FileProcessor:
             html_content = self.markdown_filter(processed_content)
 
             # Determine slug and output directory
-            slug = metadata.get('slug', os.path.splitext(os.path.basename(file_path))[0])
+            slug = metadata.get('custom_url', os.path.splitext(os.path.basename(file_path))[0])
 
             if is_page:
                 output_dir = os.path.join(self.output_dir, slug)
@@ -718,9 +731,18 @@ class FileProcessor:
                 # Prepare metadata for the main index page
                 permalink = f"{self.blog_slug}/{slug}/"
                 raw_date = metadata.get('date')
+                
+                # Process excerpt - convert markdown to HTML in all cases
+                if metadata.get('excerpt'):
+                    # If excerpt is from metadata, convert markdown to HTML
+                    excerpt_html = self.markdown_filter(metadata.get('excerpt'))
+                else:
+                    # If excerpt is generated from content, it's already converted in generate_excerpt
+                    excerpt_html = self.generate_excerpt(processed_content)
+                
                 post_meta = {
                     'title': metadata.get('title', 'Untitled'),
-                    'excerpt': metadata.get('excerpt') or self.generate_excerpt(processed_content),
+                    'excerpt': excerpt_html,
                     'permalink': permalink,
                     'date': self.format_date(raw_date),  # Formatted date for display
                     'raw_date': raw_date,  # Raw date for sitemap and sorting
@@ -977,7 +999,7 @@ class Stattic:
                     parts = content.split('---', 2)
                     if len(parts) >= 3:
                         metadata = yaml.safe_load(parts[1])
-                        slug = metadata.get('slug', os.path.splitext(file)[0])
+                        slug = metadata.get('custom_url', os.path.splitext(file)[0])
 
                         # Add permalink for navigation
                         metadata['permalink'] = f"/{slug}/"
@@ -1042,8 +1064,8 @@ class Stattic:
 
         css_content = "/* Google Fonts - Downloaded for offline use */\n\n"
 
-        # Standard Google Font weights - reduced for performance
-        font_weights = [400, 700]  # Only download regular and bold
+        # Standard Google Font weights
+        font_weights = [300, 400, 700]  # Download light, regular and bold
 
         for font in self.fonts:
             try:
@@ -1054,58 +1076,76 @@ class Stattic:
                 self.logger.info(f"Downloading font: {font}")
 
                 for weight in font_weights:
-                    # Define local filenames
-                    woff2_name = f"{font_slug}-{weight}.woff2"
-                    ttf_name = f"{font_slug}-{weight}.ttf"
-                    woff2_path = os.path.join(fonts_dir, woff2_name)
-                    ttf_path = os.path.join(fonts_dir, ttf_name)
+                    # Define local filenames - use .woff for broader compatibility
+                    woff_name = f"{font_slug}-{weight}.woff"
+                    woff_path = os.path.join(fonts_dir, woff_name)
 
                     # Only download if file doesn't exist or is empty (caching)
-                    if not os.path.exists(woff2_path) or os.path.getsize(woff2_path) == 0:
+                    if not os.path.exists(woff_path) or os.path.getsize(woff_path) == 0:
                         # Build the Google Fonts CSS2 API URL
                         google_font_url = f'https://fonts.googleapis.com/css2?family={font_cleaned}:wght@{weight}&display=swap'
 
+                        # Create a custom headers dict for this request to get simpler font response
+                        custom_headers = {
+                            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                        }
+
                         # Fetch the CSS with SSRF protection
-                        success, result = self.safe_requestor.safe_google_fonts_get(google_font_url, timeout=10, allow_redirects=True)
+                        success, result = self.safe_requestor.safe_google_fonts_get(google_font_url, timeout=30, allow_redirects=True, headers=custom_headers)
                         if not success:
                             self.logger.warning(f"Failed to fetch Google Fonts CSS {google_font_url}: {result}")
                             continue
 
                         response = result
                         css_data = response.text
+                        self.logger.debug(f"Received font CSS for {font} weight {weight}: {len(css_data)} chars")
 
-                        # Extract font file URLs
+                        # Extract font file URLs - look for the main latin font file
                         font_urls = re.findall(r'url\((https://fonts\.gstatic\.com/[^)]+)\)', css_data)
                         if not font_urls:
-                            continue  # No font files found
+                            self.logger.warning(f"No font URLs found in CSS for {font} weight {weight}")
+                            continue
 
-                        # Download the first available URL (typically woff2)
-                        for font_url in font_urls:
-                            # Validate and download font file with SSRF protection
-                            success, result = self.safe_requestor.safe_google_fonts_get(font_url, timeout=10, allow_redirects=True)
-                            if success:
-                                font_response = result
-                                try:
-                                    with open(woff2_path, 'wb') as f:
-                                        f.write(font_response.content)
-                                    self.logger.debug(f"Downloaded {font} weight {weight} → {woff2_name}")
-                                    break
-                                except (IOError, OSError, PermissionError) as e:
-                                    self.logger.error(f"Failed to write font file {woff2_path}: {e}")
+                        # Download the font file - prioritize the last one (usually the main latin charset)
+                        font_url = font_urls[-1]  # Last URL is typically the main latin font
+                        self.logger.debug(f"Downloading font file: {font_url}")
+                        
+                        # Validate and download font file with SSRF protection
+                        success, result = self.safe_requestor.safe_google_fonts_get(font_url, timeout=30, allow_redirects=True)
+                        if success:
+                            font_response = result
+                            try:
+                                # Verify we got actual font data
+                                if len(font_response.content) < 1000:  # Font files should be at least 1KB
+                                    self.logger.warning(f"Font file too small ({len(font_response.content)} bytes) for {font} weight {weight}")
                                     continue
-                            else:
-                                self.logger.warning(f"Failed to download font file {font_url}: {result}")
+                                    
+                                with open(woff_path, 'wb') as f:
+                                    f.write(font_response.content)
+                                self.logger.info(f"Downloaded {font} weight {weight} → {woff_name} ({len(font_response.content)} bytes)")
+                            except (IOError, OSError, PermissionError) as e:
+                                self.logger.error(f"Failed to write font file {woff_path}: {e}")
                                 continue
+                        else:
+                            self.logger.warning(f"Failed to download font file {font_url}: {result}")
+                            continue
 
                     # Generate @font-face CSS rule (only if the font file exists)
-                    if os.path.exists(woff2_path) and os.path.getsize(woff2_path) > 0:
+                    if os.path.exists(woff_path) and os.path.getsize(woff_path) > 1000:  # Ensure file is substantial
+                        # Determine format based on file extension
+                        if woff_path.endswith('.woff2'):
+                            font_format = 'woff2'
+                        elif woff_path.endswith('.woff'):
+                            font_format = 'woff'
+                        else:
+                            font_format = 'truetype'
+                            
                         css_content += f"""@font-face {{
     font-family: '{font.strip()}';
     font-style: normal;
     font-weight: {weight};
     font-display: swap;
-    src: url('../fonts/{woff2_name}') format('woff2'),
-         url('../fonts/{ttf_name}') format('truetype');
+    src: url('../fonts/{woff_name}') format('{font_format}');
 }}
 
 """
@@ -1113,12 +1153,66 @@ class Stattic:
             except Exception as e:
                 self.logger.warning(f"Failed to download font {font}: {e}")
 
-        # Add body font-family rule
+        # Add font-family rules based on font assignment logic
         if self.fonts:
-            body_font = self.fonts[0].strip()
+            title_font = self.fonts[0].strip()  # First font for titles/headings
+            body_font = self.fonts[1].strip() if len(self.fonts) > 1 else self.fonts[0].strip()  # Second font for body, or same if only one
+            
             css_content += f"""
+/* Font assignments */
 body {{
     font-family: '{body_font}', sans-serif;
+}}
+
+h1, h2, h3, h4, h5, h6, .title-font {{
+    font-family: '{title_font}', sans-serif;
+}}
+
+/* Semantic font classes */
+.font-body-light {{
+    font-family: '{body_font}', sans-serif;
+    font-weight: 300;
+}}
+
+.font-body {{
+    font-family: '{body_font}', sans-serif;
+    font-weight: 400;
+}}
+
+.font-body-bold {{
+    font-family: '{body_font}', sans-serif;
+    font-weight: 700;
+}}
+
+.font-heading-light {{
+    font-family: '{title_font}', sans-serif;
+    font-weight: 300;
+}}
+
+.font-heading {{
+    font-family: '{title_font}', sans-serif;
+    font-weight: 400;
+}}
+
+.font-heading-bold {{
+    font-family: '{title_font}', sans-serif;
+    font-weight: 700;
+}}
+
+/* Legacy classes for backward compatibility */
+.quicksand-300 {{
+    font-family: '{title_font}', sans-serif;
+    font-weight: 300;
+}}
+
+.quicksand-400 {{
+    font-family: '{title_font}', sans-serif;
+    font-weight: 400;
+}}
+
+.quicksand-700 {{
+    font-family: '{title_font}', sans-serif;
+    font-weight: 700;
 }}
 """
 
@@ -1138,13 +1232,13 @@ body {{
             return False
 
         # Check if all expected font files exist
-        font_weights = [400, 700]  # Match the download weights
+        font_weights = [300, 400, 700]  # Match the download weights
         for font in self.fonts:
             font_slug = font.strip().lower().replace(' ', '-')
             for weight in font_weights:
-                woff2_name = f"{font_slug}-{weight}.woff2"
-                woff2_path = os.path.join(fonts_dir, woff2_name)
-                if not os.path.exists(woff2_path) or os.path.getsize(woff2_path) == 0:
+                woff_name = f"{font_slug}-{weight}.woff"
+                woff_path = os.path.join(fonts_dir, woff_name)
+                if not os.path.exists(woff_path) or os.path.getsize(woff_path) < 1000:  # Font files should be substantial
                     return False
 
         # Check if CSS file contains references to all current fonts
@@ -1306,7 +1400,7 @@ body {{
                         parts = content.split('---', 2)
                         if len(parts) >= 3:
                             metadata = yaml.safe_load(parts[1])
-                            slug = metadata.get('slug', os.path.splitext(page_file)[0])
+                            slug = metadata.get('custom_url', os.path.splitext(page_file)[0])
                             stattic_generated.add(slug)
                     except Exception:
                         # If we can't read the page, use filename as fallback

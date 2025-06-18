@@ -312,7 +312,7 @@ This command processes the content in the `content/` directory, applies the temp
 
 ### **Example: Building the Site with Custom Fonts and Minification**
 ```bash
-stattic --output ~/Documents/demo --posts-per-page 10 --sort-by title --fonts "Quicksand, Roboto" --site-url "https://demo.stattic.site" --minify
+stattic --output ~/Documents/demo --posts-per-page 10 --sort-by title --fonts "Quicksand, Roboto" --site-url "https://demo.stattic.site" --blog-slug "articles" --llms public --minify
 ```
 
 * * *
