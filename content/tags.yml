@@ -1,1 +1,6 @@
-{}
+# Tags configuration for Stattic
+
+1:
+  name: "Getting Started"
+  description: "Posts about getting started with new topics"
+  slug: "getting-started"

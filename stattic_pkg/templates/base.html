@@ -43,10 +43,12 @@
 <a href="#navigation" class="skip-link">Skip to navigation</a>
 <a href="#footer" class="skip-link">Skip to footer</a>
 
-<header id="navigation">
+<header id="navigation" x-data="{ mobileMenuOpen: false }">
     <div class="container max-w-screen-xl m-auto py-6 px-4 flex justify-between items-center">
         <h2 class="text-3xl font-bold font-heading-bold"><a href="{{ relative_path }}" class="text-links">{{ site_title or 'Stattic' }}</a></h2>
-        <nav>
+
+        <!-- Desktop Navigation -->
+        <nav class="hidden md:block">
             <ul class="flex space-x-6">
                 {% for page in pages %}
                     {% if page.nav_hide != 'true' %}
@@ -57,6 +59,81 @@
                 {% endfor %}
             </ul>
         </nav>
+
+        <!-- Mobile Hamburger Button -->
+        <button 
+            @click="mobileMenuOpen = true"
+            class="md:hidden text-primary focus:outline-none focus:ring-2 focus:ring-links rounded-md p-2"
+            aria-label="Open mobile menu"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-menu-2">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M4 6l16 0" />
+                <path d="M4 12l16 0" />
+                <path d="M4 18l16 0" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Mobile Menu Overlay -->
+    <div 
+        x-show="mobileMenuOpen"
+        x-transition:enter="transition-opacity ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition-opacity ease-in duration-300"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-black bg-opacity-50 z-50 md:hidden"
+        @click="mobileMenuOpen = false"
+    >
+        <!-- Mobile Menu Panel -->
+        <div 
+            x-show="mobileMenuOpen"
+            x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="translate-x-full"
+            x-transition:enter-end="translate-x-0"
+            x-transition:leave="transition ease-in duration-300"
+            x-transition:leave-start="translate-x-0"
+            x-transition:leave-end="translate-x-full"
+            class="fixed inset-y-0 right-0 w-full max-w-xl bg-slate-900 shadow-xl z-60"
+            @click.stop
+        >
+            <div class="flex flex-col h-full">
+                <!-- Mobile Menu Header -->
+                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+                    <h3 class="text-xl font-bold text-links">{{ site_title or 'Stattic' }}</h3>
+                    <button 
+                        @click="mobileMenuOpen = false"
+                        class="text-primary focus:outline-none focus:ring-2 focus:ring-links rounded-md p-2"
+                        aria-label="Close mobile menu"
+                    >
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Mobile Menu Navigation -->
+                <nav class="flex-1 px-6 py-6">
+                    <ul class="space-y-4">
+                        {% for page in pages %}
+                            {% if page.nav_hide != 'true' %}
+                                <li>
+                                    <a 
+                                        href="{{ relative_path }}{{ page.permalink.strip('/') }}/" 
+                                        class="text-primary hover:text-links text-lg font-medium block py-2"
+                                        @click="mobileMenuOpen = false"
+                                    >
+                                        {{ page.title }}
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                </nav>
+            </div>
+        </div>
     </div>
 </header>
 

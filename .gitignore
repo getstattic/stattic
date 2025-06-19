@@ -11,3 +11,4 @@ autoStattic.py
 __pycache__
 build/
 *.egg-info/
+package-lock.json

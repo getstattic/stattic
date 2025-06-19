@@ -1,1 +1,8 @@
-1: Robert
+# Authors configuration for Stattic
+
+1:
+  name: "Robert DeVore"
+  email: "me@robertdevore.com"
+  bio: "Welcome! I'm the author of this site."
+  website: "https://robertdevore.com"
+  twitter: "@deviorobert"

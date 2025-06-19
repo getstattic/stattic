@@ -66,6 +66,11 @@
     border-color: var(--border-color);
 }
 
+/* Ensure mobile menu works properly */
+[x-cloak] { display: none !important; }
+.mobile-menu-overlay { display: none; }
+.mobile-menu-overlay[style*="display: block"] { display: block !important; }
+
 .stattic-content p {
     margin-bottom: 1.5rem;
     line-height: 1.75;
