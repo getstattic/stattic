@@ -60,7 +60,7 @@ After installation, you can use the `stattic` command from anywhere in your term
 
 2. **Install Required Python Dependencies:**
 
-    Ensure you have Python 3.6 or higher installed.
+    Ensure you have Python 3.8 or higher installed.
 
     ```bash
     pip install -r requirements.txt

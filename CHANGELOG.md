@@ -1,5 +1,66 @@
 # CHANGELOG.md
 
+## 1.0.0 - 2025-06-19
+
+### 🎉 Major Release - PyPI Package & Security Overhaul
+
+This is a major release that transforms Stattic from a single Python script to a professional PyPI package with comprehensive security improvements, performance enhancements, and new features.
+
+#### 🔧 **Architecture & Packaging**
+* 📦 NEW: Complete PyPI package restructure - Moved from single `stattic.py` to proper package structure with `stattic_pkg/`
+* 📦 NEW: Added proper package distribution with setup.py and pyproject.toml
+* 📦 NEW: Created installable command-line interface
+* 📦 NEW: Added comprehensive project initialization with `stattic --init` - Includes templates, assets, and starter content
+1. Quick Start Guide
+
+#### 🔐 **Security Enhancements**
+* 🔒 NEW: Comprehensive SSRF (Server-Side Request Forgery) protection - Prevents malicious URL requests
+* 🔒 NEW: URL validation and safe request handling
+* 🔒 IMPROVE: Enhanced input validation and sanitization
+* 🔒 IMPROVE: Secure file handling and path validation
+* 🔒 IMPROVE: Protected against directory traversal attacks
+
+#### ⚡ **Performance Improvements**
+* ⚡ IMPROVE: Massive code cleanup to fix large site build speed regression
+* ⚡ IMPROVE: Optimized code for faster large site builds
+* ⚡ IMPROVE: Streamlined file processing and reduced memory usage
+
+#### 🎨 **UI/UX Enhancements**
+* 🎨 NEW: Mobile-responsive hamburger menu in base theme - Clean Alpine.js implementation
+* 🎨 IMPROVE: Enhanced template system with better organization
+* 🎨 IMPROVE: Improved responsive design and mobile experience
+
+#### ⚙️ **Configuration & Settings**
+* ⚙️ NEW: Configuration file support for `stattic.yml` and `stattic.json`
+* ⚙️ NEW: Centralized settings management system
+* ⚙️ IMPROVE: Enhanced CLI argument parsing and validation
+
+#### 🧹 **Code Quality & Maintenance**
+* 🧹 IMPROVE: Complete code restructure and modularization
+* 🧹 IMPROVE: Enhanced error handling and logging
+* 🧹 IMPROVE: Comprehensive code cleanup and optimization
+* 🧹 IMPROVE: Better separation of concerns and modularity
+
+#### 📖 **Documentation & Developer Experience**
+* 📖 IMPROVE: Comprehensive README updates
+* 📖 IMPROVE: Enhanced project documentation
+* 📖 NEW: Professional package metadata and distribution info
+
+### 🔄 **Migration from v0.3.0**
+If upgrading from the old `stattic.py` script:
+1. Install the new package: `pip install stattic`
+2. Use `stattic --init` to create a new project structure
+3. Migrate your existing `content/` and `templates/` directories
+4. Update any custom scripts to use the new CLI interface
+
+### ⚠️ **Breaking Changes**
+* Project structure completely changed from single script to package
+* CLI interface updated (now uses `stattic` command instead of `python stattic.py`)
+* Configuration system changed to use `stattic.yml`/`stattic.json` files
+* Template file locations moved to `stattic_pkg/templates/`
+
+---
+
 ## 0.3.0
 
 * [📦 NEW: Added generator for llms.txt file](https://github.com/getstattic/stattic/commit/1d54f3c7ff724eb3467979c30bd9de5b1621b8cf)
