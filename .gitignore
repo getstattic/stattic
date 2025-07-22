@@ -12,3 +12,4 @@ __pycache__
 build/
 *.egg-info/
 package-lock.json
+.venv/
