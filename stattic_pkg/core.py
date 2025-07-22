@@ -193,15 +193,20 @@ class FileProcessor:
                     self.logger.warning(f"SSRF protection blocked URL {url}: {error_msg}")
                     return None
 
-                # Enhanced filename sanitization
-                image_name = self._sanitize_filename(url, output_dir)
+                # Enhanced filename sanitization - but check cache FIRST
+                base_image_name = self._sanitize_filename_without_uniqueness(url)
+                base_image_path = os.path.join(output_dir, base_image_name)
+                base_webp_path = base_image_path.rsplit('.', 1)[0] + '.webp'
+
+                # Caching: Check for WebP BEFORE making filename unique
+                if os.path.exists(base_webp_path):
+                    self.logger.info(f"Using cached WebP image: {base_webp_path}")
+                    return base_webp_path  # Return cached WebP path instead of None
+
+                # If not cached, now make filename unique for downloading
+                image_name = self._make_filename_unique(base_image_name, output_dir)
                 image_path = os.path.join(output_dir, image_name)
                 webp_path = image_path.rsplit('.', 1)[0] + '.webp'
-
-                # Caching: If .webp already exists, skip download/conversion (original image may have been deleted)
-                if os.path.exists(webp_path):
-                    self.logger.debug(f"WebP image already cached: {webp_path}")
-                    return None  # Signal to skip further processing
 
                 # Make safe request with streaming enabled and size limit
                 success, result = self.safe_requestor.safe_get(
@@ -276,6 +281,79 @@ class FileProcessor:
         except Exception as e:
             self.logger.error(f"Unexpected error downloading image {url}: {e}")
             return None
+
+    def _sanitize_filename_without_uniqueness(self, url: str) -> str:
+        """Enhanced filename sanitization with security checks, but without uniqueness."""
+        try:
+            # Extract filename from URL
+            parsed_url = urlparse(url)
+            filename = os.path.basename(parsed_url.path)
+
+            # If no filename in path, generate from URL hash
+            if not filename or '.' not in filename:
+                url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
+                # Try to detect extension from URL or use .jpg as default
+                if url.lower().endswith(('.png', '.gif', '.webp', '.bmp', '.tiff')):
+                    ext = '.' + url.lower().split('.')[-1]
+                else:
+                    ext = '.jpg'
+                filename = f"image_{url_hash}{ext}"
+
+            # Remove query parameters and fragments
+            filename = filename.split('?')[0].split('#')[0]
+
+            # Comprehensive sanitization
+            filename = os.path.basename(os.path.normpath(filename))
+
+            # Remove dangerous characters and patterns
+            dangerous_chars = '<>:"|?*\\/\x00-\x1f'
+            for char in dangerous_chars:
+                filename = filename.replace(char, '_')
+
+            # Remove directory traversal sequences
+            filename = filename.replace('..', '_')
+
+            # Ensure filename isn't empty and has proper extension
+            if not filename or len(filename) < 3:
+                url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
+                filename = f"image_{url_hash}.jpg"
+
+            # Ensure it has a valid image extension
+            valid_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')
+            if not any(filename.lower().endswith(ext) for ext in valid_extensions):
+                filename += '.jpg'
+
+            # Length limit (255 characters for most filesystems)
+            if len(filename) > 255:
+                name_part, ext_part = os.path.splitext(filename)
+                max_name_length = 255 - len(ext_part)
+                filename = name_part[:max_name_length] + ext_part
+
+            return filename
+
+        except Exception as e:
+            # Fallback to hash-based filename if sanitization fails
+            self.logger.warning(f"Filename sanitization failed for {url}: {e}")
+            url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
+            return f"image_{url_hash}.jpg"
+
+    def _make_filename_unique(self, base_filename: str, output_dir: str) -> str:
+        """Make filename unique if it already exists."""
+        filename = base_filename
+        original_filename = base_filename
+        counter = 1
+        
+        while os.path.exists(os.path.join(output_dir, filename)):
+            name_part, ext_part = os.path.splitext(original_filename)
+            filename = f"{name_part}_{counter}{ext_part}"
+            counter += 1
+            # Prevent infinite loop
+            if counter > 1000:
+                url_hash = hashlib.md5(original_filename.encode()).hexdigest()[:12]
+                filename = f"image_{url_hash}_{counter}.jpg"
+                break
+        
+        return filename
 
     def _sanitize_filename(self, url: str, output_dir: str) -> str:
         """Enhanced filename sanitization with security checks."""
@@ -363,6 +441,14 @@ class FileProcessor:
             if os.path.isdir(image_path):
                 return None
 
+            # If input is already a WebP file, return it as-is (already cached)
+            if image_path.lower().endswith('.webp'):
+                if os.path.exists(image_path):
+                    self.logger.debug(f"Image already in WebP format: {image_path}")
+                    return image_path
+                else:
+                    return None
+
             ext = os.path.splitext(image_path)[1].lower()
             webp_path = image_path.rsplit('.', 1)[0] + '.webp'
 
@@ -440,18 +526,28 @@ class FileProcessor:
             return None
 
         # Validate and sanitize filename to prevent path traversal
-        image_name = os.path.basename(local_image_path)
+        base_image_name = os.path.basename(local_image_path)
         # Remove directory traversal sequences and invalid characters
-        image_name = os.path.basename(os.path.normpath(image_name))
-        if '..' in image_name or '/' in image_name or '\\' in image_name:
+        base_image_name = os.path.basename(os.path.normpath(base_image_name))
+        if '..' in base_image_name or '/' in base_image_name or '\\' in base_image_name:
             # Generate safe filename from path hash if suspicious
-            image_name = hashlib.md5(local_image_path.encode()).hexdigest() + os.path.splitext(image_name)[1]
+            base_image_name = hashlib.md5(local_image_path.encode()).hexdigest() + os.path.splitext(base_image_name)[1]
 
-        dest_path = os.path.join(self.images_dir, image_name)
+        base_dest_path = os.path.join(self.images_dir, base_image_name)
+        base_webp_path = base_dest_path.rsplit('.', 1)[0] + '.webp'
 
         # Verify the final path is within images_dir
-        if not os.path.abspath(dest_path).startswith(os.path.abspath(self.images_dir)):
-            raise ValueError(f"Path traversal attempt detected: {image_name}")
+        if not os.path.abspath(base_dest_path).startswith(os.path.abspath(self.images_dir)):
+            raise ValueError(f"Path traversal attempt detected: {base_image_name}")
+
+        # Caching: Check for WebP version FIRST before making filename unique
+        if os.path.exists(base_webp_path):
+            self.logger.info(f"Using cached WebP image: {base_webp_path}")
+            return base_webp_path
+
+        # If not cached, make filename unique if needed
+        image_name = self._make_filename_unique(base_image_name, self.images_dir)
+        dest_path = os.path.join(self.images_dir, image_name)
 
         # Only copy if not already present
         if not os.path.exists(dest_path):
@@ -480,11 +576,11 @@ class FileProcessor:
 
         return dest_path
 
-    def process_images(self, content: str, markdown_file_path: Optional[str] = None) -> Tuple[str, int]:
+    def process_images(self, content: str, markdown_file_path: Optional[str] = None) -> Tuple[str, int, int]:
         """
         Find image references (Markdown, <img>, <a href>, srcset), including local/relative paths.
         Download/copy them to images_dir, convert to .webp, then update references in content.
-        Return (updated_content, images_converted_count).
+        Return (updated_content, images_converted_count, images_cached_count).
         """
         self.logger.info("FileProcessor.process_images is running")
 
@@ -501,6 +597,10 @@ class FileProcessor:
         image_urls = set(markdown_image_urls + html_image_urls + href_urls + all_srcset_urls)
         local_image_paths = {}
         images_converted = 0
+        images_cached = 0
+        
+        # Track which images we've already processed in THIS run to avoid double-counting
+        processed_urls = set()
 
         # Enhanced memory management: Process images with resource monitoring
         total_images = len(image_urls)
@@ -509,6 +609,14 @@ class FileProcessor:
         for url in image_urls:
             processed_count += 1
             self.logger.debug(f"Processing image {processed_count}/{total_images}: {url}")
+
+            # Skip if we've already processed this URL in this run
+            if url in processed_urls:
+                # Find the existing path for this URL
+                if url in local_image_paths:
+                    continue
+                    
+            processed_urls.add(url)
 
             image_path = None
             # Check if URL is local (relative path)
@@ -532,16 +640,26 @@ class FileProcessor:
                 image_path = self.download_image(url, self.images_dir)
 
             if image_path:
-                webp_path = self.convert_image_to_webp(image_path)
+                # Check if the returned path is already a WebP file (cached from previous builds)
+                if image_path.endswith('.webp'):
+                    webp_path = image_path
+                    images_cached += 1  # This was truly cached from a previous build
+                    self.logger.debug(f"Using cached WebP from previous build for {url}")
+                else:
+                    # Convert to WebP (new image in this build)
+                    webp_path = self.convert_image_to_webp(image_path)
+                    if webp_path:
+                        images_converted += 1
+                        self.logger.debug(f"Converted new image to WebP for {url}")
+                        
                 if webp_path:
-                    images_converted += 1
                     # Sanitize webp filename to prevent path traversal
                     webp_name = os.path.basename(webp_path)
                     webp_name = os.path.basename(os.path.normpath(webp_name))
                     if '..' in webp_name or '/' in webp_name or '\\' in webp_name:
                         # Generate safe filename if suspicious
                         webp_name = hashlib.md5(webp_path.encode()).hexdigest() + '.webp'
-                    local_image_paths[url] = f"images/{webp_name}"
+                    local_image_paths[url] = f"/images/{webp_name}"
 
                 # Enhanced memory management: Explicit cleanup and garbage collection hints
                 # for large image processing batches
@@ -557,7 +675,7 @@ class FileProcessor:
             content = content.replace(f']({original_url})', f']({new_path})')
             content = re.sub(f'{re.escape(original_url)}(?=\\s|,|$)', new_path, content)
 
-        return content, images_converted
+        return content, images_converted, images_cached
 
     def parse_markdown_with_metadata(self, filepath: str) -> Tuple[Dict[str, Any], str]:
         """Parse a markdown file with YAML front matter."""
@@ -612,7 +730,88 @@ class FileProcessor:
                 return str(author)
         return 'Unknown Author'
 
-    def build_post_or_page(self, metadata, html_content, post_slug, output_dir, is_page):
+    def process_featured_image(self, featured_image_path: str, markdown_file_path: Optional[str] = None) -> Optional[str]:
+        """
+        Process a featured image path, converting it to WebP and returning the absolute path.
+        """
+        if not featured_image_path:
+            return None
+            
+        # Check if it's a local path (relative to content or absolute within site)
+        if not featured_image_path.startswith('http') and not featured_image_path.startswith('//'):
+            if markdown_file_path:
+                # Get the site root directory (parent of content directory)
+                site_root = os.path.dirname(self.content_dir)
+                full_local_path = None
+                
+                # Try multiple common locations for featured images
+                search_paths = []
+                
+                if featured_image_path.startswith('/'):
+                    # Absolute path from site root
+                    search_paths.append(os.path.join(site_root, featured_image_path.lstrip('/')))
+                elif featured_image_path.startswith('assets/') or featured_image_path.startswith('content/'):
+                    # Already has directory prefix
+                    search_paths.append(os.path.join(site_root, featured_image_path))
+                else:
+                    # Just a filename - try common locations
+                    filename = os.path.basename(featured_image_path)
+                    search_paths.extend([
+                        os.path.join(site_root, 'assets', 'images', filename),  # Most common
+                        os.path.join(site_root, 'assets', filename),
+                        os.path.join(self.content_dir, 'posts', filename),
+                        os.path.join(self.content_dir, 'pages', filename),
+                        os.path.join(self.content_dir, filename),
+                        os.path.join(os.path.dirname(markdown_file_path), filename)  # Relative to markdown
+                    ])
+                
+                # Find the first existing file
+                for path in search_paths:
+                    if os.path.exists(path):
+                        full_local_path = path
+                        break
+                
+                if full_local_path:
+                    full_local_path = os.path.abspath(full_local_path)
+                    
+                    # Validate path is safe (allow going to site root but not beyond)
+                    if not full_local_path.startswith(os.path.abspath(site_root)):
+                        self.logger.warning(f"Skipping potentially unsafe featured image path: {featured_image_path}")
+                        return None
+                        
+                    # Copy and convert the image
+                    image_path = self.copy_local_image(full_local_path)
+                    if image_path:
+                        if image_path.endswith('.webp'):
+                            # Already WebP (cached)
+                            webp_name = os.path.basename(image_path)
+                            return f"/images/{webp_name}"
+                        else:
+                            # Convert to WebP
+                            webp_path = self.convert_image_to_webp(image_path)
+                            if webp_path:
+                                webp_name = os.path.basename(webp_path)
+                                return f"/images/{webp_name}"
+                else:
+                    self.logger.debug(f"Featured image not found in any location: {featured_image_path}")
+        else:
+            # Remote URL - download and process
+            image_path = self.download_image(featured_image_path, self.images_dir)
+            if image_path:
+                if image_path.endswith('.webp'):
+                    # Already WebP (cached)
+                    webp_name = os.path.basename(image_path)
+                    return f"/images/{webp_name}"
+                else:
+                    # Convert to WebP
+                    webp_path = self.convert_image_to_webp(image_path)
+                    if webp_path:
+                        webp_name = os.path.basename(webp_path)
+                        return f"/images/{webp_name}"
+        
+        return None
+
+    def build_post_or_page(self, metadata, html_content, post_slug, output_dir, is_page, markdown_file_path=None):
         """Build a single post or page."""
         os.makedirs(output_dir, exist_ok=True)
         output_file_path = os.path.join(output_dir, 'index.html')
@@ -625,6 +824,13 @@ class FileProcessor:
             template_name = f"post-{template_part}.html" if not is_page else f"page-{template_part}.html"
         else:
             template_name = 'page.html' if is_page else 'post.html'
+        
+        # Process featured image if present
+        processed_featured_image = None
+        if metadata.get('featured_image'):
+            processed_featured_image = self.process_featured_image(metadata.get('featured_image'), markdown_file_path)
+            if processed_featured_image:
+                self.logger.debug(f"Processed featured image: {metadata.get('featured_image')} -> {processed_featured_image}")
         
         try:
             template = self.env.get_template(template_name)
@@ -652,7 +858,7 @@ class FileProcessor:
                 date=formatted_date,
                 categories=post_categories,
                 tags=post_tags,
-                featured_image=metadata.get('featured_image', None),
+                featured_image=processed_featured_image or metadata.get('featured_image', None),
                 seo_title=metadata.get('seo_title', title),
                 seo_keywords=metadata.get('keywords', ''),
                 seo_description=metadata.get('description', ''),
@@ -707,7 +913,7 @@ class FileProcessor:
             metadata, markdown_content = self.parse_markdown_with_metadata(file_path)
 
             # Process images in the content
-            processed_content, images_converted = self.process_images(markdown_content, file_path)
+            processed_content, images_converted, images_cached = self.process_images(markdown_content, file_path)
 
             # Convert to HTML
             html_content = self.markdown_filter(processed_content)
@@ -726,12 +932,12 @@ class FileProcessor:
                     output_dir = os.path.join(self.output_dir, slug)
 
             # Build the post or page
-            success = self.build_post_or_page(metadata, html_content, slug, output_dir, is_page)
+            success = self.build_post_or_page(metadata, html_content, slug, output_dir, is_page, file_path)
 
             # Return simple format like original stattic.py for performance
             if is_page:
                 # Pages do not produce post_metadata
-                return {"post_metadata": None, "images_converted": images_converted}
+                return {"post_metadata": None, "images_converted": images_converted, "images_cached": images_cached}
             else:
                 # Prepare metadata for the main index page
                 # If blog_slug is empty, permalink is just slug; else, blog_slug/slug
@@ -749,18 +955,28 @@ class FileProcessor:
                     # If excerpt is generated from content, it's already converted in generate_excerpt
                     excerpt_html = self.generate_excerpt(processed_content)
 
+                # Process featured image for blog listing metadata
+                processed_featured_image_for_listing = None
+                if metadata.get('featured_image'):
+                    processed_featured_image_for_listing = self.process_featured_image(metadata.get('featured_image'), file_path)
+
+                # Update metadata with processed featured image for blog listings
+                metadata_for_listing = metadata.copy()
+                if processed_featured_image_for_listing:
+                    metadata_for_listing['featured_image'] = processed_featured_image_for_listing
+
                 post_meta = {
                     'title': metadata.get('title', 'Untitled'),
                     'excerpt': excerpt_html,
                     'permalink': permalink,
                     'date': self.format_date(raw_date),  # Formatted date for display
                     'raw_date': raw_date,  # Raw date for sitemap and sorting
-                    'metadata': metadata
+                    'metadata': metadata_for_listing  # Use updated metadata with processed featured image
                 }
-                return {"post_metadata": post_meta, "images_converted": images_converted}
+                return {"post_metadata": post_meta, "images_converted": images_converted, "images_cached": images_cached}
         except Exception as e:
             self.logger.error(f"Error processing {file_path}: {e}")
-            return {"post_metadata": None, "images_converted": 0}
+            return {"post_metadata": None, "images_converted": 0, "images_cached": 0}
 
     def calculate_relative_path(self, current_output_dir: str) -> str:
         """Calculate relative path from current directory to root."""
@@ -779,6 +995,7 @@ class InfoFilter(logging.Filter):
             "Total posts generated:",
             "Total pages generated:",
             "Total images converted to WebP:",
+            "Total images reused from cache:",
             "Building blog page with pagination",
             "Building index page",
             "Generating RSS feed",
@@ -839,6 +1056,7 @@ class Stattic:
         self.posts_generated = 0
         self.pages_generated = 0
         self.image_conversion_count = 0
+        self.image_cache_count = 0
         self.posts = []  # Collect post metadata during processing
 
         # Initialize Jinja2 environment and markdown parser FIRST
@@ -1434,6 +1652,24 @@ h1, h2, h3, h4, h5, h6, .title-font {{
                 if item == 'assets' and fonts_to_preserve:
                     self._clean_assets_preserving_fonts(item_path, fonts_dir, fonts_css_path)
                     preserved_items.append('cached fonts')
+                # Special handling for images directory to preserve cached WebP files
+                elif item == 'images':
+                    if os.path.isdir(item_path):
+                        # Count existing WebP files before cleanup
+                        existing_webp_count = 0
+                        if os.path.exists(item_path):
+                            existing_webp_count = len([f for f in os.listdir(item_path) if f.endswith('.webp')])
+                        
+                        # Only remove non-WebP files to preserve image cache
+                        if os.path.exists(item_path):
+                            for img_file in os.listdir(item_path):
+                                img_file_path = os.path.join(item_path, img_file)
+                                if not img_file.endswith('.webp'):
+                                    if os.path.isfile(img_file_path):
+                                        os.remove(img_file_path)
+                        
+                        if existing_webp_count > 0:
+                            preserved_items.append(f'{existing_webp_count} cached images')
                 else:
                     # Remove Stattic-generated item
                     if os.path.isdir(item_path):
@@ -1579,6 +1815,7 @@ h1, h2, h3, h4, h5, h6, .title-font {{
                     if result:
                         # Accumulate the images
                         self.image_conversion_count += result.get("images_converted", 0)
+                        self.image_cache_count += result.get("images_cached", 0)
                         
                         if is_page:
                             self.pages_generated += 1
@@ -1620,6 +1857,7 @@ h1, h2, h3, h4, h5, h6, .title-font {{
                         if result:
                             # Accumulate the images
                             self.image_conversion_count += result.get("images_converted", 0)
+                            self.image_cache_count += result.get("images_cached", 0)
                             self.posts_generated += 1
                             # If there's post_metadata, store it
                             post_meta = result.get("post_metadata")
@@ -1637,6 +1875,7 @@ h1, h2, h3, h4, h5, h6, .title-font {{
                         result = future.result()
                         if result:
                             self.image_conversion_count += result.get("images_converted", 0)
+                            self.image_cache_count += result.get("images_cached", 0)
                         self.pages_generated += 1
                     except Exception as e:
                         self.logger.error(f"Error building page {pg}: {e}")
@@ -1722,56 +1961,73 @@ h1, h2, h3, h4, h5, h6, .title-font {{
         total_posts = len(sorted_posts)
         posts_per_page = self.posts_per_page
         total_pages = (total_posts + posts_per_page - 1) // posts_per_page
-        current_page = 1
-        page_posts = sorted_posts[:posts_per_page]
-        pagination_links = self.get_pagination_links(current_page, total_pages)
 
-        # Render the template with the appropriate context
-        if blog_page_data:
-            # For dedicated blog pages, use the blog page metadata and content
-            rendered_html = self.render_template(
-                template_name,
-                content=blog_page_data.get('content', ''),
-                title=page_title,
-                posts=page_posts,
-                pages=self.pages,
-                site_url=self.site_url,
-                metadata=blog_page_data,
-                page=blog_page_data,
-                relative_path=self.calculate_relative_path(blog_page_output),
-                total_pages=total_pages,
-                current_page=current_page,
-                page_numbers=pagination_links,
-                get_author_name=self.get_author_name
-            )
-        else:
-            # For regular blog_slug pages
-            rendered_html = self.render_template(
-                template_name,
-                posts=page_posts,
-                pages=self.pages,
-                page={'title': page_title},
-                relative_path=self.calculate_relative_path(blog_page_output),
-                total_pages=total_pages,
-                current_page=current_page,
-                page_numbers=pagination_links,
-                site_url=self.site_url
-            )
+        # Create all paginated pages for the blog
+        for page_num in range(1, total_pages + 1):
+            start_idx = (page_num - 1) * posts_per_page
+            end_idx = start_idx + posts_per_page
+            page_posts = sorted_posts[start_idx:end_idx]
 
-        try:
-            with open(os.path.join(blog_page_output, 'index.html'), 'w') as f:
-                f.write(rendered_html)
-            
-            # Determine the path for logging
-            if blog_page_data:
-                blog_path = blog_page_data.get('custom_url', 'blog')
+            # Determine output directory for each page
+            if page_num == 1:
+                current_page_output = blog_page_output
             else:
-                blog_path = self.blog_slug
+                current_page_output = os.path.join(blog_page_output, 'page', str(page_num))
+            
+            os.makedirs(current_page_output, exist_ok=True)
+            
+            pagination_links = self.get_pagination_links(page_num, total_pages)
+
+            # Render the template with the appropriate context
+            if blog_page_data:
+                # For dedicated blog pages, use the blog page metadata and content
+                rendered_html = self.render_template(
+                    template_name,
+                    content=blog_page_data.get('content', ''),
+                    title=page_title,
+                    posts=page_posts,
+                    pages=self.pages,
+                    site_url=self.site_url,
+                    metadata=blog_page_data,
+                    page=blog_page_data,
+                    relative_path=self.calculate_relative_path(current_page_output),
+                    total_pages=total_pages,
+                    current_page=page_num,
+                    page_numbers=pagination_links,
+                    get_author_name=self.get_author_name
+                )
+            else:
+                # For regular blog_slug pages
+                rendered_html = self.render_template(
+                    template_name,
+                    posts=page_posts,
+                    pages=self.pages,
+                    page={'title': page_title},
+                    relative_path=self.calculate_relative_path(current_page_output),
+                    total_pages=total_pages,
+                    current_page=page_num,
+                    page_numbers=pagination_links,
+                    site_url=self.site_url
+                )
+
+            try:
+                with open(os.path.join(current_page_output, 'index.html'), 'w') as f:
+                    f.write(rendered_html)
                 
-            self.logger.info(f"Generated blog archive page at /{blog_path}/index.html")
-        except (IOError, OSError, PermissionError) as e:
-            self.logger.error(f"Failed to write blog page: {e}")
-            return False
+                # Log the page creation
+                if blog_page_data:
+                    blog_path = blog_page_data.get('custom_url', 'blog')
+                else:
+                    blog_path = self.blog_slug
+                    
+                if page_num == 1:
+                    self.logger.info(f"Generated blog archive page at /{blog_path}/index.html")
+                else:
+                    self.logger.info(f"Generated blog page {page_num} at /{blog_path}/page/{page_num}/index.html")
+                    
+            except (IOError, OSError, PermissionError) as e:
+                self.logger.error(f"Failed to write blog page {page_num}: {e}")
+                return False
 
         return True
 

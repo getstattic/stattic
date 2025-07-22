@@ -418,6 +418,7 @@ def main() -> None:
         generator.logger.info(f"Total posts generated: {generator.posts_generated}")
         generator.logger.info(f"Total pages generated: {generator.pages_generated}")
         generator.logger.info(f"Total images converted to WebP: {generator.image_conversion_count}")
+        generator.logger.info(f"Total images reused from cache: {generator.image_cache_count}")
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
