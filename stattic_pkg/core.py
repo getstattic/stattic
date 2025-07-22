@@ -193,6 +193,16 @@ class FileProcessor:
                     self.logger.warning(f"SSRF protection blocked URL {url}: {error_msg}")
                     return None
 
+                # Enhanced filename sanitization
+                image_name = self._sanitize_filename(url, output_dir)
+                image_path = os.path.join(output_dir, image_name)
+                webp_path = image_path.rsplit('.', 1)[0] + '.webp'
+
+                # Caching: If .webp already exists, skip download/conversion (original image may have been deleted)
+                if os.path.exists(webp_path):
+                    self.logger.debug(f"WebP image already cached: {webp_path}")
+                    return None  # Signal to skip further processing
+
                 # Make safe request with streaming enabled and size limit
                 success, result = self.safe_requestor.safe_get(
                     url, 
@@ -222,10 +232,6 @@ class FileProcessor:
                     if content_length and int(content_length) > max_size:
                         self.logger.warning(f"Image too large {url}: {content_length} bytes (max {max_size})")
                         return None
-                    
-                    # Enhanced filename sanitization
-                    image_name = self._sanitize_filename(url, output_dir)
-                    image_path = os.path.join(output_dir, image_name)
                     
                     # Verify the final path is within output_dir (path traversal protection)
                     if not os.path.abspath(image_path).startswith(os.path.abspath(output_dir)):
@@ -375,27 +381,21 @@ class FileProcessor:
 
                         # Preserve animation with lossless quality (matches old gif2webp -lossless)
                         img.save(webp_path, "WEBP", save_all=True, lossless=True, method=6)
-
-                        # Explicit cleanup for large GIF frames
-                        if hasattr(img, 'close'):
-                            img.close()
+                        # No explicit img.close() needed
                 else:
                     # Process static images with memory optimization
                     with Image.open(image_path) as img:
                         # Memory optimization: Check image size
                         width, height = img.size
                         pixel_count = width * height
-                        # Conservative limit: ~100MP for static images
-                        if pixel_count > 100_000_000:
+                        # Conservative limit: ~200MP for static images
+                        if pixel_count > 200_000_000:
                             self.logger.warning(f"Static image too large for safe processing: {width}x{height} ({pixel_count} pixels)")
                             return None
 
                         # Convert with optimized settings
-                        img.save(webp_path, "WEBP", quality=85, method=6, optimize=True)
-
-                        # Explicit cleanup
-                        if hasattr(img, 'close'):
-                            img.close()
+                        img.save(webp_path, "WEBP", quality=95, method=6, optimize=True)
+                        # No explicit img.close() needed
 
                 # Verify conversion was successful
                 if not os.path.exists(webp_path):
@@ -715,10 +715,15 @@ class FileProcessor:
             # Determine slug and output directory
             slug = metadata.get('custom_url', os.path.splitext(os.path.basename(file_path))[0])
 
+            # Determine output directory for posts and pages
             if is_page:
                 output_dir = os.path.join(self.output_dir, slug)
             else:
-                output_dir = os.path.join(self.output_dir, self.blog_slug, slug)
+                # If blog_slug is empty, put posts at root; else, under blog_slug
+                if self.blog_slug:
+                    output_dir = os.path.join(self.output_dir, self.blog_slug, slug)
+                else:
+                    output_dir = os.path.join(self.output_dir, slug)
 
             # Build the post or page
             success = self.build_post_or_page(metadata, html_content, slug, output_dir, is_page)
@@ -729,9 +734,13 @@ class FileProcessor:
                 return {"post_metadata": None, "images_converted": images_converted}
             else:
                 # Prepare metadata for the main index page
-                permalink = f"{self.blog_slug}/{slug}/"
+                # If blog_slug is empty, permalink is just slug; else, blog_slug/slug
+                if self.blog_slug:
+                    permalink = f"{self.blog_slug}/{slug}/"
+                else:
+                    permalink = f"{slug}/"
                 raw_date = metadata.get('date')
-                
+
                 # Process excerpt - convert markdown to HTML in all cases
                 if metadata.get('excerpt'):
                     # If excerpt is from metadata, convert markdown to HTML
@@ -739,7 +748,7 @@ class FileProcessor:
                 else:
                     # If excerpt is generated from content, it's already converted in generate_excerpt
                     excerpt_html = self.generate_excerpt(processed_content)
-                
+
                 post_meta = {
                     'title': metadata.get('title', 'Untitled'),
                     'excerpt': excerpt_html,
@@ -832,6 +841,10 @@ class Stattic:
         self.image_conversion_count = 0
         self.posts = []  # Collect post metadata during processing
 
+        # Initialize Jinja2 environment and markdown parser FIRST
+        self.env = Environment(loader=FileSystemLoader(self.templates_dir))
+        self.markdown_parser = self.create_markdown_parser()
+
         # Initialize URL validation and safe requesting
         self.url_validator = URLValidator()
         self.session = requests.Session()
@@ -843,6 +856,8 @@ class Stattic:
                 package_templates = pkg_resources.resource_filename('stattic_pkg', 'templates')
                 if os.path.exists(package_templates):
                     self.templates_dir = package_templates
+                    # Re-initialize env with new templates_dir
+                    self.env = Environment(loader=FileSystemLoader(self.templates_dir))
             except:
                 pass
 
@@ -860,11 +875,8 @@ class Stattic:
         self.pages = []
         self.load_pages()
 
-        # Set up shared Jinja2 environment (used for main templates like index, blog list)
-        self.env = Environment(loader=FileSystemLoader(self.templates_dir))
-
-        # Initialize markdown parser
-        self.markdown_parser = self.create_markdown_parser()
+        # Collect posts for blog page regardless of blog_slug
+        self.blog_posts = []
 
     def setup_logging(self) -> None:
         """Set up logging configuration."""
@@ -1631,7 +1643,71 @@ h1, h2, h3, h4, h5, h6, .title-font {{
 
     def build_blog_page(self) -> bool:
         """Build the main blog page (single archive page, not paginated)."""
-        blog_page_output = os.path.join(self.output_dir, self.blog_slug)
+        
+        # Check if there's a dedicated blog page defined in pages
+        blog_page_data = None
+        for page in self.pages:
+            if page.get('custom_url', '') == 'blog':
+                blog_page_data = page
+                break
+        
+        # If blog_slug is empty and no dedicated blog page exists, skip creating a separate blog page
+        # The posts will be handled by build_index_page instead
+        if not self.blog_slug and not blog_page_data:
+            self.logger.info("blog_slug is empty and no dedicated blog page found. Posts will appear on index page.")
+            return True
+            
+        # Determine output directory and template based on whether we have a dedicated blog page
+        if blog_page_data:
+            # Use the dedicated blog page setup
+            blog_page_output = os.path.join(self.output_dir, blog_page_data.get('custom_url', 'blog'))
+            template_name = 'page-blog.html'
+            page_title = blog_page_data.get('title', 'Blog')
+            self.logger.info(f"Using dedicated blog page: {blog_page_data.get('custom_url', 'blog')}")
+        elif self.blog_slug:
+            # Use the blog_slug setup
+            blog_page_output = os.path.join(self.output_dir, self.blog_slug)
+            
+            # Check for custom templates
+            has_custom_blog_template = os.path.exists(os.path.join(self.templates_dir, 'page-blog.html'))
+            has_custom_home_template = os.path.exists(os.path.join(self.templates_dir, 'page-home.html'))
+
+            if has_custom_blog_template:
+                template_name = 'page-blog.html'
+            elif not has_custom_home_template:
+                # No custom blog or homepage - redirect /blog to /
+                redirect_html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        // Redirect instantly without rendering anything.
+        window.location.replace("/");
+    </script>
+    <meta name="robots" content="noindex">
+    <title>Redirecting ...</title>
+</head>
+<body>
+    <p>If you are not redirected automatically, <a href="/">click here</a>.</p>
+</body>
+</html>"""
+                os.makedirs(blog_page_output, exist_ok=True)
+                try:
+                    with open(os.path.join(blog_page_output, 'index.html'), 'w') as f:
+                        f.write(redirect_html)
+                    self.logger.info("No blog/homepage template found. Redirected /blog/ to /.")
+                except (IOError, OSError, PermissionError) as e:
+                    self.logger.error(f"Failed to write blog redirect page: {e}")
+                return True
+            else:
+                self.logger.warning("Template 'page-blog.html' not found. Falling back to 'page.html'.")
+                template_name = 'page.html'
+            
+            page_title = 'Blog'
+        else:
+            # Fallback - shouldn't reach here due to the check above
+            return True
+            
         os.makedirs(blog_page_output, exist_ok=True)
 
         if self.sort_by == 'order':
@@ -1650,56 +1726,49 @@ h1, h2, h3, h4, h5, h6, .title-font {{
         page_posts = sorted_posts[:posts_per_page]
         pagination_links = self.get_pagination_links(current_page, total_pages)
 
-        # Check for custom templates
-        has_custom_blog_template = os.path.exists(os.path.join(self.templates_dir, 'page-blog.html'))
-        has_custom_home_template = os.path.exists(os.path.join(self.templates_dir, 'page-home.html'))
-
-        if has_custom_blog_template:
-            template_name = 'page-blog.html'
-        elif not has_custom_home_template:
-            # No custom blog or homepage - redirect /blog to /
-            redirect_html = """<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <script>
-        // Redirect instantly without rendering anything.
-        window.location.replace("/");
-    </script>
-    <meta name="robots" content="noindex">
-    <title>Redirecting ...</title>
-</head>
-<body>
-    <p>If you are not redirected automatically, <a href="/">click here</a>.</p>
-</body>
-</html>"""
-            try:
-                with open(os.path.join(blog_page_output, 'index.html'), 'w') as f:
-                    f.write(redirect_html)
-                self.logger.info("No blog/homepage template found. Redirected /blog/ to /.")
-            except (IOError, OSError, PermissionError) as e:
-                self.logger.error(f"Failed to write blog redirect page: {e}")
-            return
+        # Render the template with the appropriate context
+        if blog_page_data:
+            # For dedicated blog pages, use the blog page metadata and content
+            rendered_html = self.render_template(
+                template_name,
+                content=blog_page_data.get('content', ''),
+                title=page_title,
+                posts=page_posts,
+                pages=self.pages,
+                site_url=self.site_url,
+                metadata=blog_page_data,
+                page=blog_page_data,
+                relative_path=self.calculate_relative_path(blog_page_output),
+                total_pages=total_pages,
+                current_page=current_page,
+                page_numbers=pagination_links,
+                get_author_name=self.get_author_name
+            )
         else:
-            self.logger.warning("Template 'page-blog.html' not found. Falling back to 'page.html'.")
-            template_name = 'page.html'
-
-        rendered_html = self.render_template(
-            template_name,
-            posts=page_posts,
-            pages=self.pages,
-            page={'title': 'Blog'},
-            relative_path=self.calculate_relative_path(blog_page_output),
-            total_pages=total_pages,
-            current_page=current_page,
-            page_numbers=pagination_links,
-            site_url=self.site_url
-        )
+            # For regular blog_slug pages
+            rendered_html = self.render_template(
+                template_name,
+                posts=page_posts,
+                pages=self.pages,
+                page={'title': page_title},
+                relative_path=self.calculate_relative_path(blog_page_output),
+                total_pages=total_pages,
+                current_page=current_page,
+                page_numbers=pagination_links,
+                site_url=self.site_url
+            )
 
         try:
             with open(os.path.join(blog_page_output, 'index.html'), 'w') as f:
                 f.write(rendered_html)
-            self.logger.info(f"Generated blog archive page at /{self.blog_slug}/index.html")
+            
+            # Determine the path for logging
+            if blog_page_data:
+                blog_path = blog_page_data.get('custom_url', 'blog')
+            else:
+                blog_path = self.blog_slug
+                
+            self.logger.info(f"Generated blog archive page at /{blog_path}/index.html")
         except (IOError, OSError, PermissionError) as e:
             self.logger.error(f"Failed to write blog page: {e}")
             return False
